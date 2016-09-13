@@ -49,6 +49,6 @@ License
 This DATABASE is made available under the Open Data Commons Attribution License (ODC-By) v1.0. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 Copyright &copy; 2014-2016 Adrian C. Prelipcean - http://adrianprelipcean.github.io/ 
-Copyright &copy; 2016 adIT AI - https://github.com/adIT-AI
+Copyright &copy; 2016 Badger AB - https://github.com/Badger-MEILI
 
 You should have received a copy of the Open Data Commons Attribution License (ODC-By) v1.0 along with this program.  If not, see http://opendatacommons.org/wp-content/uploads/2010/01/odc_by_1.0_public_text.txt
