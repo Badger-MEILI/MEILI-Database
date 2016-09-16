@@ -105,4 +105,17 @@ group by tripleg_id, type_of_tripleg, tl.user_id, from_time, to_time
 $BODY$
   LANGUAGE sql VOLATILE;;
 COMMENT ON FUNCTION apiv2.pagination_get_tripleg_with_id(IN tripleg_id integer) is 
-'Gets the unannotated triplegs of a given trip';
+'Gets a given unannotated triplegs';
+
+
+CREATE OR REPLACE FUNCTION apiv2.pagination_get_triplegs_of_trip(trip_id integer)
+  RETURNS json AS
+$BODY$
+select json_agg(l1.*) from
+(select tripleg_id from apiv2.unprocessed_triplegs where trip_id = $1) l2
+join lateral (select * from apiv2.pagination_get_tripleg_with_id(l2.tripleg_id)) l1
+on true
+$BODY$
+  LANGUAGE sql;
+COMMENT ON FUNCTION apiv2.pagination_get_triplegs_of_trip(trip_id integer) is
+'Retrieves the unannotated triplegs of a given trip';
