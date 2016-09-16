@@ -80,3 +80,38 @@ CREATE TABLE apiv2.triplegs_gt
 COMMENT ON TABLE apiv2.triplegs_gt is 
 'Stores the triplegs that have been annotated by the user';
 
+/*
+Unannotated trips and triplegs for pagination 
+*/
+
+create view apiv2.unprocessed_trips as
+        select * from trips_inf as ti where
+        from_time>= (
+        select max(tg.to_time) from apiv2.trips_gt tg where
+        tg.user_id = ti.user_id
+        and tg.type_of_trip = 1)
+        and ti.type_of_trip = 1;
+Comment on view apiv2.unprocessed_trips is 
+'Used to serve the unannotated trips to the user on the pagination - selection by user_id';
+
+create view apiv2.unprocessed_triplegs as
+        select * from apiv2.triplegs_inf where trip_id =
+        any (select trip_id from apiv2.unprocessed_trips);
+Comment on view apiv2.unprocessed_trips is 
+'Used to serve the unprocessed triplegs per trip - selection per trip_id';
+
+/*
+Annotated trips and triplegs annotation 
+*/
+-- view that will serve the annotated trips to the user on request
+create view apiv2.processed_trips as
+        select * from apiv2.trips_gt where type_of_trip = 1;
+Comment on view apiv2.unprocessed_trips is 
+'Used to serve the annotated trips of a user - selection per user_id';
+
+-- view that will serve the annotated triplegs per trip
+create view apiv2.processed_triplegs as
+        select * from apiv2.triplegs_inf where trip_id =
+        any (select trip_id from apiv2.processed_trips); 
+        Comment on view apiv2.unprocessed_trips is 
+'Used to serve the annotated triplegs per trip- selection per trip_id';
