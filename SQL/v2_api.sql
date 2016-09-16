@@ -141,7 +141,7 @@ Unannotated trips and triplegs for pagination
 create or replace view apiv2.unprocessed_trips as
         select * from apiv2.trips_inf as ti where
         from_time>= (
-        select max(tg.to_time) from apiv2.trips_gt tg where
+        select coalesce(max(tg.to_time),0) from apiv2.trips_gt tg where
         tg.user_id = ti.user_id
         and tg.type_of_trip = 1)
         and ti.type_of_trip = 1;
