@@ -1,7 +1,4 @@
-﻿/*
-** SCHEMA DEFINITION
-*/
-create schema if not exists apiv2; 
+﻿create schema if not exists apiv2; 
 comment on schema apiv2 is
 'Stores the data that can be used in the CRUD operations for trips and triplegs';
 
@@ -18,14 +15,21 @@ CREATE TABLE IF NOT EXISTS apiv2.trips_inf
   length_of_trip double precision,
   duration_of_trip double precision,
   number_of_triplegs integer,
-  trip_id serial NOT NULL primary key
+  trip_id serial NOT NULL,
+  parent_trip_id bigint,
+  CONSTRAINT trips_inf_pkey PRIMARY KEY (trip_id),
+  CONSTRAINT trips_inf_user_id_fkey FOREIGN KEY (user_id)
+      REFERENCES raw_data.user_table (id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT trip_temporal_integrity CHECK (from_time <= to_time)
 );
 COMMENT ON TABLE apiv2.trips_inf is 
 'Stores the trips that have been detected by the segmentation algorithm';
 
+
 CREATE TABLE IF NOT EXISTS apiv2.triplegs_inf
 (
-  user_id int references raw_data.user_table(id),
+  user_id integer,
   from_point_id bigint,
   to_point_id bigint,
   from_time bigint,
@@ -35,17 +39,20 @@ CREATE TABLE IF NOT EXISTS apiv2.triplegs_inf
   transition_poi_id bigint,
   length_of_tripleg double precision,
   duration_of_tripleg double precision,
-  tripleg_id serial NOT NULL primary key,
-  trip_id int references apiv2.trips_inf(trip_id)
-  );
+  tripleg_id serial NOT NULL,
+  trip_id integer,
+  parent_tripleg_id bigint,
+  CONSTRAINT triplegs_inf_pkey PRIMARY KEY (tripleg_id),
+  CONSTRAINT tripleg_temporal_integrity CHECK (from_time <= to_time)
+);
 COMMENT ON TABLE apiv2.triplegs_inf is 
 'Stores the triplegs that have been detected by the segmentation algorithm';
 
 CREATE TABLE IF NOT EXISTS apiv2.trips_gt
 (
-  trip_id serial not null primary key,
-  trip_inf_id int references apiv2.trips_inf(trip_id),
-  user_id bigint references raw_data.user_table(id),
+trip_id serial NOT NULL,
+  trip_inf_id integer,
+  user_id bigint,
   from_point_id text,
   to_point_id text,
   from_time bigint,
@@ -55,16 +62,23 @@ CREATE TABLE IF NOT EXISTS apiv2.trips_gt
   destination_poi_id bigint,
   length_of_trip double precision,
   duration_of_trip double precision,
-  number_of_triplegs integer 
+  number_of_triplegs integer,
+  CONSTRAINT trips_gt_pkey PRIMARY KEY (trip_id),
+  CONSTRAINT trips_gt_trip_inf_id_fkey FOREIGN KEY (trip_inf_id)
+      REFERENCES apiv2.trips_inf (trip_id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT trips_gt_user_id_fkey FOREIGN KEY (user_id)
+      REFERENCES raw_data.user_table (id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 COMMENT ON TABLE apiv2.trips_gt is 
 'Stores the trips that have been annotated by the user';
 
 CREATE TABLE IF NOT EXISTS apiv2.triplegs_gt
 (
-  tripleg_id serial not null,
-  tripleg_inf_id int references apiv2.triplegs_inf(tripleg_id),
-  trip_id int references apiv2.trips_gt(trip_id),
+  tripleg_id serial NOT NULL,
+  tripleg_inf_id integer,
+  trip_id integer,
   user_id bigint,
   from_point_id text,
   to_point_id text,
@@ -74,7 +88,13 @@ CREATE TABLE IF NOT EXISTS apiv2.triplegs_gt
   transportation_type integer,
   transition_poi_id bigint,
   length_of_tripleg double precision,
-  duration_of_tripleg double precision 
+  duration_of_tripleg double precision,
+  CONSTRAINT triplegs_gt_trip_id_fkey FOREIGN KEY (trip_id)
+      REFERENCES apiv2.trips_gt (trip_id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT triplegs_gt_tripleg_inf_id_fkey FOREIGN KEY (tripleg_inf_id)
+      REFERENCES apiv2.triplegs_inf (tripleg_id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
 COMMENT ON TABLE apiv2.triplegs_gt is 
@@ -84,15 +104,16 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 
 CREATE TABLE IF NOT EXISTS apiv2.pois
 (
-  gid serial NOT NULL primary key,
+  gid serial NOT NULL,
   type_ text,
   name_ text,
   lat_ double precision,
   lon_ double precision,
   user_id bigint,
-  osm_id bigint default 0,
+  osm_id bigint DEFAULT 0,
   is_personal boolean,
-  geom geometry(Point,3006)
+  geom geometry(Point,3006),
+  CONSTRAINT pois_pkey PRIMARY KEY (gid)
 );
 
 COMMENT ON TABLE apiv2.pois is 
@@ -100,8 +121,8 @@ COMMENT ON TABLE apiv2.pois is
 
 CREATE TABLE IF NOT EXISTS apiv2.poi_transportation
 (
-gid serial NOT NULL primary key,
-  osm_id bigint default 0,
+  gid serial NOT NULL,
+  osm_id bigint DEFAULT 0,
   type_ text,
   name_ text,
   lat_ double precision,
@@ -111,7 +132,8 @@ gid serial NOT NULL primary key,
   transportation_types text,
   declaring_user_id integer,
   type_sv text,
-  geom geometry(Point,3006)
+  geom geometry(Point,3006),
+  CONSTRAINT poi_transportation_pkey PRIMARY KEY (gid)
 );
 COMMENT ON TABLE apiv2.poi_transportation is 
 'Stores the transportation POIs used by the app';
@@ -168,4 +190,4 @@ create or replace view apiv2.processed_triplegs as
         select * from apiv2.triplegs_inf where trip_id =
         any (select trip_id from apiv2.processed_trips); 
         Comment on view apiv2.unprocessed_trips is 
-'Used to serve the annotated triplegs per trip- selection per trip_id';
+'Used to serve the annotated triplegs per trip - selection per trip_id';

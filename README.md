@@ -17,7 +17,7 @@ The MEILI Database is the backend storage module for the MEILI System and has th
 
 ### Tech
 
-The MEILI Database is built on Postgres 9.2 and uses PostGIS 2.1.7.
+The MEILI Database is built on Postgres 9.3 and uses PostGIS 2.1.7.
 
 ### Installation
 
@@ -27,7 +27,13 @@ Set up your database, go to the location of *init.sql* and run:
 $ psql -U yourUsername -d yourDatabase -a -f init.sql
 ```
 
-Alternatively, you can copy the content of *init.sql* in *pgAdmin* if you do not want to run *psql* in the terminal.
+### Testing
+
+Install [pgTap](http://pgtap.org/), go to the root folder and run: 
+
+```sh
+$ pg_prove --dbname yourDatabase Unit_Tests/unit_tests.sql -U yourUsername
+```
 
 ### Development
 
@@ -35,9 +41,8 @@ Want to contribute? Great! See the Todos list for needed improvements. Also, you
  
 ### Todos
 
- - Write unit tests
- - Change trip_gt id from text to bigint 
- - Secure password field for user_table 
+ - Use different roles for calling functions, based on the necessary permissions
+ - Generate test data 
 
 Need help setting up MEILI in production
 ----
