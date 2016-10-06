@@ -17,19 +17,12 @@ SET search_path = apiv2, pg_catalog;
 
 INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (1, 'Walk', 'Till fots');
 INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (2, 'Bicycle', 'Cykel');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (3, 'Moped / Motorcycle', 'Moped / Mc');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (4, 'Car as driver', 'Bil som förare');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (5, 'Car as passenger', 'Bil som passagerare');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (6, 'Taxi', 'Taxi');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (7, 'Paratransit', 'Färdtjänst');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (8, 'Bus', 'Buss');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (9, 'Subway', 'Tunnelbana');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (10, 'Tram', 'Spårvagn');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (11, 'Commuter train', 'Pendeltåg');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (12, 'Train', 'Tåg');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (13, 'Ferryboat', 'Färja / båt');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (14, 'Flight', 'Flyg');
-INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (15, 'Other', 'Övrigt');
+INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (3, 'Bus', 'Buss');
+INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (4, 'Car', 'Bil');
+INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (5, 'Tram', 'Spårvagn');
+INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (6, 'Train', 'Tåg');
+INSERT INTO travel_mode_table (id, name_, name_sv) VALUES (7, 'Other', 'Övrigt');
+
 
 
 --
