@@ -323,10 +323,14 @@ UPDATES THE PURPOSE ID OF A TRIP
 $bd$; 
 
 
-CREATE OR REPLACE FUNCTION apiv2.update_trip_end_time(to_time bigint, trip_id integer)
+CREATE OR REPLACE FUNCTION apiv2.update_trip_end_time(
+    to_time_ bigint,
+    trip_id_ integer)
   RETURNS json AS
 $BODY$
-with 
+DECLARE response json; 
+BEGIN
+	with 
 	-- get the details of the trip that should be updated 
 	trip_details as (
 	select trip_id, from_time, to_time from apiv2.unprocessed_trips where trip_id = $2
@@ -347,18 +351,22 @@ with
 			or trips.to_time between tl.to_time and $1)),
 	-- updated trips 
 	updated_neighboring_trips as (update apiv2.trips_inf set from_time = $1 where trip_id = any (select trip_id from affected_trips_by_update where action_needed = 'UPDATE' and type_of_trip = 1) returning $2 as trip_id),
-	-- the initially updated trip 
+	-- the initially updated tripleg 
 	updated_current_trip as (update apiv2.trips_inf set to_time = $1 where trip_id = $2 returning trip_id), 
-	-- the deleted trips
+	-- the deleted triplegs
 	deleted_trips as (delete from apiv2.trips_inf tl2 where tl2.trip_id = any (select trip_id from affected_trips_by_update where action_needed = 'DELETE' and type_of_trip = 1) returning $2 as trip_id),
 	returning_trip_id as (SELECT distinct trip_id FROM (select * from deleted_trips union all select * from updated_neighboring_trips union all select *from updated_current_trip)  foo) 
 
-	select pagination_get_triplegs_of_trip from returning_trip_id 
-	left join lateral apiv2.pagination_get_triplegs_of_trip(trip_id) ON TRUE; 
+	select * from returning_trip_id;
 
+	response := apiv2.pagination_get_triplegs_of_trip($2);
+
+END; 
 $BODY$
-  LANGUAGE sql VOLATILE
+  LANGUAGE plpgsql VOLATILE
   COST 100;
+ALTER FUNCTION apiv2.update_trip_end_time(bigint, integer)
+  OWNER TO postgres;
 
 COMMENT ON FUNCTION apiv2.update_trip_end_time(to_time bigint, trip_id integer) IS 
 $bd$
