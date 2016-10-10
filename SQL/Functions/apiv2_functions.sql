@@ -329,6 +329,7 @@ CREATE OR REPLACE FUNCTION apiv2.update_trip_end_time(
   RETURNS json AS
 $BODY$
 DECLARE response json; 
+foo_trip_id int;
 BEGIN
 	with 
 	-- get the details of the trip that should be updated 
@@ -355,18 +356,16 @@ BEGIN
 	updated_current_trip as (update apiv2.trips_inf set to_time = $1 where trip_id = $2 returning trip_id), 
 	-- the deleted triplegs
 	deleted_trips as (delete from apiv2.trips_inf tl2 where tl2.trip_id = any (select trip_id from affected_trips_by_update where action_needed = 'DELETE' and type_of_trip = 1) returning $2 as trip_id),
-	returning_trip_id as (SELECT distinct trip_id FROM (select * from deleted_trips union all select * from updated_neighboring_trips union all select *from updated_current_trip)  foo) 
-
-	select * from returning_trip_id;
-
+	returning_trip_id as (SELECT distinct trip_id FROM (select * from deleted_trips union all select * from updated_neighboring_trips union all select *from updated_current_trip)  foo)  
+	select trip_id from returning_trip_id into foo_trip_id; 
+	
 	response := apiv2.pagination_get_triplegs_of_trip($2);
 
+	RETURN response; 
 END; 
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
-ALTER FUNCTION apiv2.update_trip_end_time(bigint, integer)
-  OWNER TO postgres;
 
 COMMENT ON FUNCTION apiv2.update_trip_end_time(to_time bigint, trip_id integer) IS 
 $bd$
