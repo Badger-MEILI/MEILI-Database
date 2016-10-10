@@ -345,7 +345,7 @@ BEGIN
 	trip_from_time := from_time from apiv2.trips_inf where trip_id = NEW.trip_id;
 	trip_to_time := to_time from apiv2.trips_inf where trip_id = NEW.trip_id;
 	trip_type := type_of_trip from apiv2.trips_inf where trip_id = NEW.trip_id; 
-	number_of_locations_within_update := count(id) from raw_data.location_table where user_id = NEW.user_id and time_ between NEW.from_time and NEW.to_time; 		
+	number_of_locations_within_update := count(id) from raw_data.location_table where user_id = NEW.user_id and time_ between NEW.from_time and NEW.to_time and accuracy_<50; 		
 
   IF NEW.from_time < trip_from_time THEN 
     RAISE EXCEPTION 'start time of tripleg has to be within the current trip'; 
