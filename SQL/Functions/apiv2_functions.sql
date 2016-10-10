@@ -365,19 +365,22 @@ $bd$
 UPDATES THE END TIME OF A TRIP AND PROPAGATES ANY TEMPORAL MODIFICATIONS TO ITS NEXT NEIGHBORING TRIPS
 $bd$;
 
-CREATE OR REPLACE FUNCTION apiv2.update_trip_start_time(from_time bigint, trip_id integer)
+CREATE OR REPLACE FUNCTION apiv2.update_trip_start_time(
+    from_time_ bigint,
+    trip_id_ integer)
   RETURNS json AS
 $BODY$
-with 
-	-- get the details of the trip that should be updated 
-	updated_current_trip as (update apiv2.trips_inf set from_time = $1 where trip_id = $2 returning trip_id)
-	
-	select pagination_get_triplegs_of_trip from updated_current_trip 
-	left join lateral apiv2.pagination_get_triplegs_of_trip(trip_id) ON TRUE; 
-
+DECLARE 
+response json;
+BEGIN 
+	update apiv2.trips_inf set 
+	from_time = $1 where trip_id = $2;
+	response := apiv2.pagination_get_triplegs_of_trip($2);
+	return response;
+END;
 $BODY$
-  LANGUAGE sql VOLATILE
-  COST 100;
+  LANGUAGE plpgsql VOLATILE
+  COST 100; 
 
 COMMENT ON FUNCTION apiv2.update_trip_start_time(from_time bigint, trip_id integer) IS 
 $bd$
