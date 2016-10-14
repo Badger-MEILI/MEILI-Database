@@ -392,7 +392,6 @@ END;
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
-
 COMMENT ON FUNCTION apiv2.tg_updated_tripleg() IS '
 Check that the updates of a tripleg only occusr within the time frame of the trip and does not overflow to neighboring trips. 
 Also assures time period consistency for stationary period triplegs

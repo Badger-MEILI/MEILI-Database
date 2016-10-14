@@ -110,7 +110,7 @@ CREATE OR REPLACE FUNCTION apiv2.pagination_get_triplegs_of_trip(trip_id integer
   RETURNS json AS
 $BODY$
 select json_agg(l1.*) from
-(select tripleg_id from apiv2.unprocessed_triplegs where trip_id = $1) l2
+(select tripleg_id from apiv2.unprocessed_triplegs where trip_id = $1 order by from_time, to_time) l2
 join lateral (select * from apiv2.pagination_get_tripleg_with_id(l2.tripleg_id)) l1
 on true
 $BODY$
