@@ -19,17 +19,23 @@ $bd$
 Gets the travel mode schema, together with the accuracy / confidence for each purpose (0 by default in the lack of any extra logic)
 $bd$;
 
-CREATE OR REPLACE FUNCTION apiv2.ap_get_purposes()
+CREATE OR REPLACE FUNCTION apiv2.ap_get_purposes(trip_id integer)
   RETURNS json AS
 $BODY$ 
-select array_to_json(array_agg((SELECT x FROM (SELECT 0 as accuracy, id, name_ as name, name_sv) x) )) as mode FROM apiv2.purpose_table
+select array_to_json
+		(array_agg
+			(
+			(SELECT x FROM (SELECT case when id = (select purpose_id from apiv2.trips_inf where id = $1) then 100 else 0 end as accuracy, id, name_ as name, name_sv) 
+				x order by accuracy)  
+			) 
+		) as mode FROM apiv2.purpose_table
 $BODY$
   LANGUAGE sql VOLATILE
-  COST 100;
+  COST 100; 
 
-COMMENT ON FUNCTION apiv2.ap_get_purposes()  is 
+COMMENT ON FUNCTION apiv2.ap_get_purposes(trip_id integer)  is 
 $bd$
-Gets the purpose schema, together with the accuracy / confidence for each purpose (0 by default in the lack of any extra logic)
+Gets the purpose schema, together with the accuracy / confidence for each purpose (0 by default in the lack of any extra logic) for a given trip id 
 $bd$;
 
 CREATE OR REPLACE FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(
@@ -84,7 +90,7 @@ select first.trip_id,
         case when (select * from exists_previous) then 
 		(select name_ from apiv2.pois where gid = (select destination_poi_id from last_processed_trip)) else '' end as previous_trip_poi,
         case when (select * from exists_next) then (select from_time from next_trip_to_process) else null end as next_trip_start_date,
-        (select * from apiv2.ap_get_purposes()) as purposes
+        (select * from apiv2.ap_get_purposes(trip_id)) as purposes
          from first_unprocessed_trip first 
  $BODY$
   LANGUAGE sql VOLATILE
