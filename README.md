@@ -29,11 +29,11 @@ $ psql -U yourUsername -d yourDatabase -a -f init.sql
 
 ### Testing
 
-Install [pgTap](http://pgtap.org/), go to the root folder and run: 
+Install [pgTap](http://pgtap.org/), go to the Unit_Tests folder and run: 
 
 ```sh
-$ pg_prove --dbname yourDatabase Unit_Tests/unit_tests.sql -U yourUsername
-```
+$ chmod +x script.sh
+$ ./script.sh db_name user_name
 
 ### Development
 
