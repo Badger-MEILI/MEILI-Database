@@ -1,7 +1,15 @@
 CREATE OR REPLACE FUNCTION apiv2.ap_get_probable_modes_of_tripleg_json(triplegid integer)
   RETURNS json AS
 $BODY$ 
-select array_to_json(array_agg((SELECT x FROM (SELECT 0 as accuracy, id, name_ as name, name_sv) x) )) as mode FROM apiv2.travel_mode_table; 
+select array_to_json(
+		array_agg(
+			(SELECT x FROM (
+				SELECT case when id = (select av.transportation_type from apiv2.triplegs_inf av where av.tripleg_id = $1) then 100 else 0 end as accuracy, 
+				id, name_ as name, name_sv order by accuracy desc
+				) x order by accuracy desc
+			)
+		)
+	) as mode FROM apiv2.travel_mode_table; 
 $BODY$
   LANGUAGE sql VOLATILE
   COST 100;
