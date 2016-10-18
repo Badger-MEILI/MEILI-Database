@@ -129,8 +129,8 @@ trip_id serial NOT NULL,
   from_time bigint,
   to_time bigint,
   type_of_trip smallint,
-  purpose_id integer,
-  destination_poi_id bigint,
+  purpose_id integer NOT NULL,
+  destination_poi_id bigint NOT NULL,
   length_of_trip double precision,
   duration_of_trip double precision,
   number_of_triplegs integer,
@@ -140,7 +140,8 @@ trip_id serial NOT NULL,
       ON UPDATE NO ACTION ON DELETE NO ACTION,
   CONSTRAINT trips_gt_user_id_fkey FOREIGN KEY (user_id)
       REFERENCES raw_data.user_table (id) MATCH SIMPLE
-      ON UPDATE NO ACTION ON DELETE NO ACTION
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT trips_gt_trip_inf_id_unique UNIQUE (trip_inf_id)
 );
 COMMENT ON TABLE apiv2.trips_gt is 
 'Stores the trips that have been annotated by the user';
@@ -165,7 +166,8 @@ CREATE TABLE IF NOT EXISTS apiv2.triplegs_gt
       ON UPDATE NO ACTION ON DELETE NO ACTION,
   CONSTRAINT triplegs_gt_tripleg_inf_id_fkey FOREIGN KEY (tripleg_inf_id)
       REFERENCES apiv2.triplegs_inf (tripleg_id) MATCH SIMPLE
-      ON UPDATE NO ACTION ON DELETE NO ACTION
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT valid_travel_mode CHECK (type_of_tripleg = 0 OR transportation_type IS NOT NULL)
 );
 
 COMMENT ON TABLE apiv2.triplegs_gt is 
