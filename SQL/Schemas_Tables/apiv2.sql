@@ -2,6 +2,65 @@
 comment on schema apiv2 is
 'Stores the data that can be used in the CRUD operations for trips and triplegs';
 
+CREATE EXTENSION IF NOT EXISTS postgis; 
+
+CREATE TABLE IF NOT EXISTS apiv2.pois
+(
+  gid serial NOT NULL,
+  type_ text,
+  name_ text,
+  lat_ double precision,
+  lon_ double precision,
+  user_id bigint,
+  osm_id bigint DEFAULT 0,
+  is_personal boolean,
+  geom geometry(Point,3006),
+  CONSTRAINT pois_pkey PRIMARY KEY (gid)
+);
+
+COMMENT ON TABLE apiv2.pois is 
+'Stores the POIs used by the app';
+
+CREATE TABLE IF NOT EXISTS apiv2.poi_transportation
+(
+  gid serial NOT NULL,
+  osm_id bigint DEFAULT 0,
+  type_ text,
+  name_ text,
+  lat_ double precision,
+  lon_ double precision,
+  declared_by_user boolean DEFAULT false,
+  transportation_lines text,
+  transportation_types text,
+  declaring_user_id integer,
+  type_sv text,
+  geom geometry(Point,3006),
+  CONSTRAINT poi_transportation_pkey PRIMARY KEY (gid)
+);
+COMMENT ON TABLE apiv2.poi_transportation is 
+'Stores the transportation POIs used by the app';
+
+CREATE TABLE IF NOT EXISTS apiv2.purpose_table
+(
+  id smallint,
+  name_ text,
+  name_sv text,
+  CONSTRAINT purpose_table_pkey PRIMARY KEY (id)
+);
+COMMENT ON TABLE apiv2.purpose_table is 
+'Stores the purpose schema';
+
+CREATE TABLE IF NOT EXISTS apiv2.travel_mode_table
+(
+  id smallint,
+  name_ text,
+  name_sv text,
+  CONSTRAINT travel_mode_table_pkey PRIMARY KEY (id)
+);
+COMMENT ON TABLE apiv2.travel_mode_table is 
+'Stores the travel mode schema';
+
+
 CREATE TABLE IF NOT EXISTS apiv2.trips_inf
 (
   user_id bigint,
@@ -18,6 +77,12 @@ CREATE TABLE IF NOT EXISTS apiv2.trips_inf
   trip_id serial NOT NULL,
   parent_trip_id bigint,
   CONSTRAINT trips_inf_pkey PRIMARY KEY (trip_id),
+  CONSTRAINT trips_inf_destination_poi_id_fkey FOREIGN KEY (destination_poi_id)
+      REFERENCES apiv2.pois (gid) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT trips_inf_purpose_id_fkey FOREIGN KEY (purpose_id)
+      REFERENCES apiv2.purpose_table (id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
   CONSTRAINT trips_inf_user_id_fkey FOREIGN KEY (user_id)
       REFERENCES raw_data.user_table (id) MATCH SIMPLE
       ON UPDATE NO ACTION ON DELETE NO ACTION,
@@ -43,6 +108,12 @@ CREATE TABLE IF NOT EXISTS apiv2.triplegs_inf
   trip_id integer,
   parent_tripleg_id bigint,
   CONSTRAINT triplegs_inf_pkey PRIMARY KEY (tripleg_id),
+  CONSTRAINT triplegs_inf_transition_poi_id_fkey FOREIGN KEY (transition_poi_id)
+      REFERENCES apiv2.poi_transportation (gid) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT triplegs_inf_transportation_type_fkey FOREIGN KEY (transportation_type)
+      REFERENCES apiv2.travel_mode_table (id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE NO ACTION,
   CONSTRAINT tripleg_temporal_integrity CHECK (from_time <= to_time)
 );
 COMMENT ON TABLE apiv2.triplegs_inf is 
@@ -99,62 +170,6 @@ CREATE TABLE IF NOT EXISTS apiv2.triplegs_gt
 
 COMMENT ON TABLE apiv2.triplegs_gt is 
 'Stores the triplegs that have been annotated by the user';
-
-CREATE EXTENSION IF NOT EXISTS postgis; 
-
-CREATE TABLE IF NOT EXISTS apiv2.pois
-(
-  gid serial NOT NULL,
-  type_ text,
-  name_ text,
-  lat_ double precision,
-  lon_ double precision,
-  user_id bigint,
-  osm_id bigint DEFAULT 0,
-  is_personal boolean,
-  geom geometry(Point,3006),
-  CONSTRAINT pois_pkey PRIMARY KEY (gid)
-);
-
-COMMENT ON TABLE apiv2.pois is 
-'Stores the POIs used by the app';
-
-CREATE TABLE IF NOT EXISTS apiv2.poi_transportation
-(
-  gid serial NOT NULL,
-  osm_id bigint DEFAULT 0,
-  type_ text,
-  name_ text,
-  lat_ double precision,
-  lon_ double precision,
-  declared_by_user boolean DEFAULT false,
-  transportation_lines text,
-  transportation_types text,
-  declaring_user_id integer,
-  type_sv text,
-  geom geometry(Point,3006),
-  CONSTRAINT poi_transportation_pkey PRIMARY KEY (gid)
-);
-COMMENT ON TABLE apiv2.poi_transportation is 
-'Stores the transportation POIs used by the app';
-
-CREATE TABLE IF NOT EXISTS apiv2.purpose_table
-(
-  id smallint,
-  name_ text,
-  name_sv text
-);
-COMMENT ON TABLE apiv2.purpose_table is 
-'Stores the purpose schema';
-
-CREATE TABLE IF NOT EXISTS apiv2.travel_mode_table
-(
-  id smallint,
-  name_ text,
-  name_sv text
-);
-COMMENT ON TABLE apiv2.travel_mode_table is 
-'Stores the travel mode schema';
 
 /*
 Unannotated trips and triplegs for pagination 
