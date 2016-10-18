@@ -143,17 +143,18 @@ $BODY$
 	from_time, to_time, type_of_trip, purpose_id, destination_poi_id)
 	(select trip_id, user_id, from_time, to_time, type_of_trip, purpose_id, destination_poi_id 
 	from apiv2.trips_inf where trip_id = $1)
-	returning user_id
+	returning user_id, trip_id
 	),
 	inserted_triplegs as (
 	insert into apiv2.triplegs_gt (tripleg_inf_id, trip_id, user_id, from_time, to_time, type_of_tripleg, transportation_type, transition_poi_id)
-	(select tripleg_id, trip_id, user_id, from_time, to_time, type_of_tripleg, transportation_type, transition_poi_id
+	(select tripleg_id, (select trip_id from inserted_trip), user_id, from_time, to_time, type_of_tripleg, transportation_type, transition_poi_id
 	from apiv2.triplegs_inf where trip_id = $1)
 	returning user_id
 	),
-	distinct_user_id as (select distinct user_id from (select * from inserted_trip union all select * from inserted_triplegs) union_of_tables)
-	select pagination_get_next_process from distinct_user_id 
-	left join lateral apiv2.pagination_get_next_process(user_id::int) ON TRUE; 
+	distinct_user_id as (select distinct user_id
+		from inserted_triplegs)  
+	select p2.* from distinct_user_id 
+	left join lateral apiv2.pagination_get_next_process(user_id::int) p2 ON TRUE; 
 $BODY$
   LANGUAGE sql VOLATILE
   COST 100;
