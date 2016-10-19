@@ -38,6 +38,33 @@ $bd$
 Gets the purpose schema, together with the accuracy / confidence for each purpose (0 by default in the lack of any extra logic) for a given trip id 
 $bd$;
 
+CREATE OR REPLACE FUNCTION apiv2.ap_get_destinations_close_by(
+    latitude double precision,
+    longitude double precision,
+    user_id bigint)
+  RETURNS json AS
+$BODY$ 
+with point_geometry as 
+	(select st_transform(st_setsrid(st_makepoint($2, $1),4326),3006) as orig_pt_geom),
+pois_within_buffer as 
+	(select *, st_distance(p1.geom, p2.orig_pt_geom) as dist from apiv2.pois as p1, point_geometry as p2 where st_dwithin(p1.geom, p2.orig_pt_geom,500) 
+	and (user_id= $3 or user_id is null)
+	), 
+response as (select gid, lat_ as latitude, lon_ as longitude, 
+	case when name_='' then type_ else name_ end as name, 
+	type_, is_personal as added_by_user, 0 as accuracy from pois_within_buffer) 
+	
+select array_to_json(array_agg(x)) from (select * from response) x  
+
+$BODY$
+  LANGUAGE sql VOLATILE
+  COST 100; 
+
+COMMENT ON FUNCTION apiv2.ap_get_destinations_close_by(latitude double precision, longitude double precision, user_id bigint) 
+IS $bd$
+EXTRACTS THE DESTINATION POIS IN THE VECINITY OF A GIVEN LOCATION FOR A USER
+$bd$;
+
 CREATE OR REPLACE FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(
     user_id bigint,
     from_time bigint,
@@ -59,8 +86,9 @@ $BODY$
 COMMENT ON FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(bigint, bigint, bigint, double precision) IS 'Extracts the transportation POIs at next to the location at the end of a time period';
 
 
+
 CREATE OR REPLACE FUNCTION apiv2.pagination_get_next_process(IN user_id integer)
-  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json) AS
+  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 with first_unprocessed_trip as (
         select * from apiv2.unprocessed_trips
@@ -79,8 +107,9 @@ with first_unprocessed_trip as (
         and trip_id> (select trip_id from first_unprocessed_trip)
         limit 1
         ),
-        exists_next as (select exists(select * from next_trip_to_process))
-
+        exists_next as (select exists(select * from next_trip_to_process)),
+	last_point_of_trip as (select lat_, lon_ from raw_data.location_table l, 
+				next_trip_to_process nt where nt.user_id =l.user_id and l.time_<=nt.to_time limit 1)
 select first.trip_id,
         first.from_time as current_trip_start_date, first.to_time as current_trip_end_date,
         case when (select * from exists_previous) then 
@@ -90,12 +119,13 @@ select first.trip_id,
         case when (select * from exists_previous) then 
 		(select name_ from apiv2.pois where gid = (select destination_poi_id from last_processed_trip)) else '' end as previous_trip_poi,
         case when (select * from exists_next) then (select from_time from next_trip_to_process) else null end as next_trip_start_date,
-        (select * from apiv2.ap_get_purposes(trip_id)) as purposes
-         from first_unprocessed_trip first 
+        (select * from apiv2.ap_get_purposes(trip_id)) as purposes,
+        (select * from apiv2.ap_get_destinations_close_by(pt.lat_, pt.lon_, user_id)) as purposes
+         from first_unprocessed_trip first,  last_point_of_trip as pt
  $BODY$
-  LANGUAGE sql VOLATILE
-  COST 100
-  ROWS 1000;
+  LANGUAGE sql VOLATILE;
+ALTER FUNCTION apiv2.pagination_get_next_process(integer)
+  OWNER TO postgres;
 
 COMMENT ON FUNCTION apiv2.pagination_get_next_process(integer) IS 'Gets the earliest unannotated trip of a user by user id';
 
@@ -136,7 +166,7 @@ COMMENT ON FUNCTION apiv2.pagination_get_triplegs_of_trip(integer) IS 'Retrieves
 
 
 CREATE OR REPLACE FUNCTION apiv2.confirm_annotation_of_trip_get_next(IN trip_id bigint)
-  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json) AS
+  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 	with inserted_trip as (
 	insert into apiv2.trips_gt (trip_inf_id, user_id, 
@@ -244,7 +274,7 @@ $bd$;
 
 
 CREATE OR REPLACE FUNCTION apiv2.insert_stationary_trip_for_user(IN from_time bigint, IN to_time bigint, IN user_id integer)
-  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json) AS
+  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 with 
 	affected_trip as (select * from apiv2.trips_inf where type_of_trip = 1 and 
@@ -541,3 +571,4 @@ COMMENT ON FUNCTION apiv2.user_get_badge_trips_info(user_id integer) IS
 $bd$
 GETS THE NUMBER OF TRIPS THAT A USER CAN ANNOTATE 
 $bd$; 
+
