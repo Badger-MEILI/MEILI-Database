@@ -1,4 +1,4 @@
-﻿BEGIN;
+﻿BEGIN
 \i schemas_and_tables.sql;
 \i test_user.sql;
 \i test_locations.sql;

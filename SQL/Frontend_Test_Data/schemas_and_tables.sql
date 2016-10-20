@@ -36,7 +36,7 @@
   CREATE TABLE IF NOT EXISTS tests.user_table
 (
   id bigint,
-  username citext,
+  username text,
   password text,
   phone_model text,
   phone_os text
