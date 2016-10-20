@@ -32,7 +32,7 @@ $ psql -U yourUsername -d yourDatabase -a -f init.sql -v ON_ERROR_STOP=1
 Install [pgTap](http://pgtap.org/), go to the Unit_Tests folder and run: 
 
 ```sh
-$ chmod +x script.s  
+$ chmod +x script.sh 
 $ ./script.sh db_name user_name
 ```
 
