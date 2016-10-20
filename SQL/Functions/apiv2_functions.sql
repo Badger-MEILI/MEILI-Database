@@ -617,7 +617,7 @@ with return_trip as (
         case when (select * from exists_previous) then 
 		(select name_ from apiv2.pois where gid = (select destination_poi_id from previous_trip)) else '' end as previous_trip_poi,
         case when (select * from exists_next) then (select from_time from next_trip) else null end as next_trip_start_date,
-        (select * from apiv2.ap_get_purposes(trip_id)) as purposes,
+        (select * from apiv2.ap_get_purposes(trip_inf_id)) as purposes,
         (select * from apiv2.ap_get_destinations_close_by(pt.lat_, pt.lon_, user_id, destination_poi_id)) as destination_places
          from return_trip first,  last_point_of_trip as pt
  $BODY$
