@@ -24,7 +24,7 @@ The MEILI Database is built on Postgres 9.3 and uses PostGIS 2.1.7.
 Set up your database, go to the location of *init.sql* and run:
 
 ```sh
-$ psql -U yourUsername -d yourDatabase -a -f init.sql
+$ psql -U yourUsername -d yourDatabase -a -f init.sql -v ON_ERROR_STOP=1
 ```
 
 ### Testing

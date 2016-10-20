@@ -41,7 +41,8 @@ $bd$;
 CREATE OR REPLACE FUNCTION apiv2.ap_get_destinations_close_by(
     latitude double precision,
     longitude double precision,
-    user_id bigint)
+    user_id bigint,
+    destination_poi_id bigint)
   RETURNS json AS
 $BODY$ 
 with point_geometry as 
@@ -52,18 +53,18 @@ pois_within_buffer as
 	), 
 response as (select gid, lat_ as latitude, lon_ as longitude, 
 	case when name_='' then type_ else name_ end as name, 
-	type_, is_personal as added_by_user, 0 as accuracy from pois_within_buffer) 
+	type_, is_personal as added_by_user, 
+	case when (gid = $4) then 100 else 0 end as accuracy from pois_within_buffer) 
 	
 select array_to_json(array_agg(x)) from (select * from response) x  
 
 $BODY$
   LANGUAGE sql VOLATILE
-  COST 100; 
+  COST 100;
 
-COMMENT ON FUNCTION apiv2.ap_get_destinations_close_by(latitude double precision, longitude double precision, user_id bigint) 
-IS $bd$
+COMMENT ON FUNCTION apiv2.ap_get_destinations_close_by(double precision, double precision, bigint, bigint) IS '
 EXTRACTS THE DESTINATION POIS IN THE VECINITY OF A GIVEN LOCATION FOR A USER
-$bd$;
+';
 
 CREATE OR REPLACE FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(
     user_id bigint,
@@ -109,7 +110,7 @@ with first_unprocessed_trip as (
         ),
         exists_next as (select exists(select * from next_trip_to_process)),
 	last_point_of_trip as (select lat_, lon_ from raw_data.location_table l, 
-				next_trip_to_process nt where nt.user_id =l.user_id and l.time_<=nt.to_time limit 1)
+				first_unprocessed_trip nt where nt.user_id =l.user_id and l.time_<=nt.to_time limit 1)
 select first.trip_id,
         first.from_time as current_trip_start_date, first.to_time as current_trip_end_date,
         case when (select * from exists_previous) then 
@@ -120,7 +121,7 @@ select first.trip_id,
 		(select name_ from apiv2.pois where gid = (select destination_poi_id from last_processed_trip)) else '' end as previous_trip_poi,
         case when (select * from exists_next) then (select from_time from next_trip_to_process) else null end as next_trip_start_date,
         (select * from apiv2.ap_get_purposes(trip_id)) as purposes,
-        (select * from apiv2.ap_get_destinations_close_by(pt.lat_, pt.lon_, user_id)) as purposes
+        (select * from apiv2.ap_get_destinations_close_by(pt.lat_, pt.lon_, user_id, destination_poi_id)) as destination_places
          from first_unprocessed_trip first,  last_point_of_trip as pt
  $BODY$
   LANGUAGE sql VOLATILE;
@@ -572,3 +573,105 @@ $bd$
 GETS THE NUMBER OF TRIPS THAT A USER CAN ANNOTATE 
 $bd$; 
 
+
+CREATE OR REPLACE FUNCTION apiv2.pagination_get_gt_trip(IN user_id_ integer, IN trip_id_ integer)
+  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+$BODY$
+with return_trip as (
+	select * from apiv2.processed_trips
+        where user_id = $1
+        and trip_id = $2),
+        exists_current as (select exists(select * from return_trip)),
+        previous_trip as (
+        select t1.* from apiv2.processed_trips t1, apiv2.processed_trips t2
+		where t1.user_id = $1
+			and t1.user_id = t2.user_id 
+			and t2.trip_id = $2
+			and t1.trip_id <> t2.trip_id
+			and t1.to_time <= t2.from_time
+		order by from_time desc, to_time desc
+		limit 1),
+        exists_previous as (select exists(select * from previous_trip)),
+        next_trip as (
+        select t1.* from apiv2.processed_trips t1, apiv2.processed_trips t2
+		where t1.user_id = $1
+			and t1.user_id = t2.user_id 
+			and t2.trip_id = $2
+			and t1.trip_id <> t2.trip_id
+			and t1.from_time >= t2.to_time
+		order by to_time, from_time
+		limit 1
+        ),
+        exists_next as (select exists(select * from next_trip)),
+	last_point_of_trip as (select lat_, lon_ from raw_data.location_table l, 
+				return_trip nt where nt.user_id =l.user_id and l.time_<=nt.to_time limit 1)
+	select 
+	case when (select * from exists_current) then 'exists'
+	else 'does not exist' end as status,
+		first.trip_id,
+        first.from_time as current_trip_start_date, first.to_time as current_trip_end_date,
+        case when (select * from exists_previous) then 
+		(select to_time from previous_trip) else 0 end as previous_trip_end_date, 
+        case when (select * from exists_previous) then 
+		(select purpose_id from previous_trip) else null end as last_trip_purpose,
+        case when (select * from exists_previous) then 
+		(select name_ from apiv2.pois where gid = (select destination_poi_id from previous_trip)) else '' end as previous_trip_poi,
+        case when (select * from exists_next) then (select from_time from next_trip) else null end as next_trip_start_date,
+        (select * from apiv2.ap_get_purposes(trip_id)) as purposes,
+        (select * from apiv2.ap_get_destinations_close_by(pt.lat_, pt.lon_, user_id, destination_poi_id)) as destination_places
+         from return_trip first,  last_point_of_trip as pt
+ $BODY$
+  LANGUAGE sql VOLATILE;
+
+COMMENT ON FUNCTION apiv2.pagination_get_gt_trip(IN user_id_ integer, IN trip_id_ integer) IS
+$bd$
+GETS THE GROUND TRUTH DEFINITION OF A SPECIFIED TRIP OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST
+$bd$;
+
+
+CREATE OR REPLACE FUNCTION apiv2.pagination_navigate_to_next_trip(IN user_id_ integer, IN trip_id_ integer)
+  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+$BODY$
+with 
+        next_trip as (
+        select t1.trip_id from apiv2.processed_trips t1, apiv2.processed_trips t2
+		where t1.user_id = $1
+			and t1.user_id = t2.user_id 
+			and t2.trip_id = $2
+			and t1.trip_id <> t2.trip_id
+			and t1.from_time >= t2.to_time
+		order by t1.to_time, t1.from_time
+		limit 1
+        )
+        SELECT f.* from next_trip g left join lateral apiv2.pagination_get_gt_trip($1, g.trip_id) f on true
+ $BODY$
+  LANGUAGE sql VOLATILE;
+
+COMMENT ON FUNCTION apiv2.pagination_navigate_to_next_trip(IN user_id_ integer, IN trip_id_ integer) IS
+$bd$
+GETS THE GROUND TRUTH DEFINITION OF THE TRIP THAT FOLLOWS THE ONE WITH THE SPECIFED ID OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST
+$bd$ ;
+
+
+CREATE OR REPLACE FUNCTION apiv2.pagination_navigate_to_previous_trip(IN user_id_ integer, IN trip_id_ integer)
+  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+$BODY$
+with 
+        previous_trip as (
+        select t1.trip_id from apiv2.processed_trips t1, apiv2.processed_trips t2
+		where t1.user_id = $1
+			and t1.user_id = t2.user_id 
+			and t2.trip_id = $2
+			and t1.trip_id <> t2.trip_id
+			and t1.to_time <= t2.from_time
+		order by t1.from_time desc, t1.to_time desc
+		limit 1
+        )
+        SELECT f.* from previous_trip g left join lateral apiv2.pagination_get_gt_trip($1, g.trip_id) f on true
+ $BODY$
+  LANGUAGE sql VOLATILE;
+
+COMMENT ON FUNCTION apiv2.pagination_navigate_to_previous_trip(IN user_id_ integer, IN trip_id_ integer) IS
+$bd$
+GETS THE GROUND TRUTH DEFINITION OF THE TRIP THAT PRECEDES THE ONE WITH THE SPECIFED ID OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST
+$bd$;
