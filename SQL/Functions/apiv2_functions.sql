@@ -606,8 +606,9 @@ with return_trip as (
 	last_point_of_trip as (select lat_, lon_ from raw_data.location_table l, 
 				return_trip nt where nt.user_id =l.user_id and l.time_<=nt.to_time limit 1)
 	select 
-	case when (select * from exists_current) then 'exists'
-	else 'does not exist' end as status,
+	case when (select * from exists_current) then 'already_annotated'
+	-- THIS SHOULD NEVER HAPPEN
+	else 'INVALID' end as status,
 		first.trip_id,
         first.from_time as current_trip_start_date, first.to_time as current_trip_end_date,
         case when (select * from exists_previous) then 
