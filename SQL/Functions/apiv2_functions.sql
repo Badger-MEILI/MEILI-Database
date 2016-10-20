@@ -628,10 +628,12 @@ $bd$
 GETS THE GROUND TRUTH DEFINITION OF A SPECIFIED TRIP OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST
 $bd$;
 
-
-CREATE OR REPLACE FUNCTION apiv2.pagination_navigate_to_next_trip(IN user_id_ integer, IN trip_id_ integer)
+CREATE OR REPLACE FUNCTION apiv2.pagination_navigate_to_next_trip(
+    IN user_id_ integer,
+    IN trip_id_ integer)
   RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
+-- note: hacky implementation, there should be at least one better way
 with 
         next_trip as (
         select t1.trip_id from apiv2.processed_trips t1, apiv2.processed_trips t2
@@ -642,15 +644,32 @@ with
 			and t1.from_time >= t2.to_time
 		order by t1.to_time, t1.from_time
 		limit 1
-        )
+        ), actual_next as (        
         SELECT f.* from next_trip g left join lateral apiv2.pagination_get_gt_trip($1, g.trip_id) f on true
- $BODY$
-  LANGUAGE sql VOLATILE;
+        )
+        select 
+	case when (exists(select * from actual_next)) then 'already_annotated'::text else 'needs_annotation'::text end as status, 
+	coalesce(t.trip_id, f.trip_id),
+	coalesce(t.current_trip_start_date,f.current_trip_start_date),
+	coalesce(t.current_trip_end_date,f.current_trip_end_date), 
+	coalesce(t.previous_trip_end_date,f.previous_trip_end_date),
+	coalesce(t.previous_trip_purpose,f.previous_trip_purpose),
+	coalesce(t.previous_trip_poi_name,f.previous_trip_poi_name),
+	coalesce(t.next_trip_start_date,f.next_trip_start_date),
+	coalesce(t.purposes,f.purposes),
+	coalesce(t.destination_places,f.destination_places)
 
-COMMENT ON FUNCTION apiv2.pagination_navigate_to_next_trip(IN user_id_ integer, IN trip_id_ integer) IS
-$bd$
+		from apiv2.pagination_get_next_process($1) f 
+		left outer join actual_next t on true 
+ $BODY$
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION apiv2.pagination_navigate_to_next_trip(integer, integer)
+  OWNER TO postgres;
+COMMENT ON FUNCTION apiv2.pagination_navigate_to_next_trip(integer, integer) IS '
 GETS THE GROUND TRUTH DEFINITION OF THE TRIP THAT FOLLOWS THE ONE WITH THE SPECIFED ID OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST
-$bd$ ;
+';
 
 
 CREATE OR REPLACE FUNCTION apiv2.pagination_navigate_to_previous_trip(IN user_id_ integer, IN trip_id_ integer)
