@@ -111,7 +111,7 @@ with first_unprocessed_trip as (
         ),
         exists_next as (select exists(select * from next_trip_to_process)),
 	last_point_of_trip as (select lat_, lon_ from raw_data.location_table l, 
-				first_unprocessed_trip nt where nt.user_id =l.user_id and l.time_<=nt.to_time limit 1)
+				first_unprocessed_trip nt where nt.user_id =l.user_id and l.time_<=nt.to_time order by l.time_ desc limit 1)
 select first.trip_id,
         first.from_time as current_trip_start_date, first.to_time as current_trip_end_date,
         case when (select * from exists_previous) then 
