@@ -77,8 +77,8 @@ with
 point as (select lat_, lon_ from raw_data.location_table where user_id = $1 and time_ between $2 and $3 
 order by time_ desc limit 1), 
 point_geometry as (select st_transform(st_setsrid(st_makepoint(lon_, lat_),4326),3006) as orig_pt_geom from point),
-personal_transition_within_buffer as (SELECT osm_id as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, 1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where st_dwithin(p2.orig_pt_geom,p1.geom, $4) and declared_by_user = true),
-public_transition_within_buffer as (SELECT osm_id as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, -1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where st_dwithin(p2.orig_pt_geom,p1.geom, $4) and declared_by_user = false)
+personal_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, 1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where st_dwithin(p2.orig_pt_geom,p1.geom, $4) and declared_by_user = true),
+public_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, -1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where st_dwithin(p2.orig_pt_geom,p1.geom, $4) and declared_by_user = false)
 select array_to_json(array_agg(x)) from (select * from personal_transition_within_buffer union all select * from public_transition_within_buffer) x 
 $BODY$
   LANGUAGE sql VOLATILE
