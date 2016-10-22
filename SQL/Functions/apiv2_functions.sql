@@ -70,7 +70,8 @@ CREATE OR REPLACE FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(
     user_id bigint,
     from_time bigint,
     to_time bigint,
-    buffer_in_meters double precision)
+    buffer_in_meters double precision, 
+    transition_poi_id bigint)
   RETURNS json AS
 $BODY$
 with 
@@ -79,7 +80,7 @@ order by time_ desc limit 1),
 point_geometry as (select st_transform(st_setsrid(st_makepoint(lon_, lat_),4326),3006) as orig_pt_geom from point),
 personal_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, 1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where st_dwithin(p2.orig_pt_geom,p1.geom, $4) and declared_by_user = true),
 public_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, -1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where st_dwithin(p2.orig_pt_geom,p1.geom, $4) and declared_by_user = false)
-select array_to_json(array_agg(x)) from (select * from personal_transition_within_buffer union all select * from public_transition_within_buffer) x 
+select array_to_json(array_agg(x)) from (select osm_id, type, name, lat, lon, added_by_user, case when (osm_id = $5) then 100 else 0 end as accuracy from personal_transition_within_buffer union all select osm_id, type, name, lat, lon, added_by_user, case when (osm_id = $5) then 100 else 0 end as accuracy from public_transition_within_buffer) x 
 $BODY$
   LANGUAGE sql VOLATILE
   COST 100;
@@ -136,18 +137,16 @@ $BODY$
 select tripleg_id as triplegid, from_time as start_time, to_time as stop_time, type_of_tripleg, 
 json_agg(row_to_json((select r from (select l.id, l.lat_ as lat, l.lon_ as lon, l.time_ as time) r))) as points,
 (select * from apiv2.ap_get_probable_modes_of_tripleg_json(tripleg_id)) as modes,
-(select * from apiv2.ap_get_transit_pois_of_tripleg_within_buffer(tl.user_id, tl.from_time, tl.to_time, 200)) as places
+(select * from apiv2.ap_get_transit_pois_of_tripleg_within_buffer(tl.user_id, tl.from_time, tl.to_time, 200, tl.transition_poi_id)) as places
 from (select * from apiv2.unprocessed_triplegs WHERE tripleg_id = $1) tl,
 raw_data.location_table l
 where l.time_ between tl.from_time and tl.to_time and l.accuracy_<=50
 and l.user_id = tl.user_id
-group by tripleg_id, type_of_tripleg, tl.user_id, from_time, to_time
+group by tripleg_id, type_of_tripleg, tl.user_id, from_time, to_time, transition_poi_id
 $BODY$
   LANGUAGE sql VOLATILE
   COST 100
   ROWS 1000;
-ALTER FUNCTION apiv2.pagination_get_tripleg_with_id(integer)
-  OWNER TO postgres;
 
 COMMENT ON FUNCTION apiv2.pagination_get_tripleg_with_id(integer) IS 'Gets an unannotated tripleg by its id';
 
