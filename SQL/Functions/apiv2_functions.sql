@@ -85,7 +85,7 @@ $BODY$
   LANGUAGE sql VOLATILE
   COST 100;
 
-COMMENT ON FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(bigint, bigint, bigint, double precision) IS 'Extracts the transportation POIs at next to the location at the end of a time period';
+COMMENT ON FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(bigint, bigint, bigint, double precision, bigint) IS 'Extracts the transportation POIs at next to the location at the end of a time period';
 
 
 
