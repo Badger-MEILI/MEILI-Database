@@ -216,21 +216,23 @@ $bd$
 DELETES A TRIP AND RETURNS THE NEXT TRIP THAT THE USER HAS TO ANNOTATE
 $bd$;
 
-
-CREATE OR REPLACE FUNCTION apiv2.delete_tripleg(tripleg_id integer)
+CREATE OR REPLACE FUNCTION apiv2.delete_tripleg(tripleg_id_ integer)
   RETURNS json AS
 $BODY$
-with  
-	deleted_trip as (
-	DELETE FROM apiv2.triplegs_inf where tripleg_id = $1 returning trip_id 
-	)
-
-	select pagination_get_triplegs_of_trip from deleted_trip
-	left join lateral apiv2.pagination_get_triplegs_of_trip(trip_id) ON TRUE; 
-
+DECLARE 
+response json; 
+trip_id_ integer;  
+BEGIN 
+	trip_id_ := trip_id from apiv2.triplegs_inf where tripleg_id = $1; 
+	
+	DELETE FROM apiv2.triplegs_inf where tripleg_id = $1;
+	
+	RAISE NOTICE 'trip_id %', trip_id_;
+	response:= apiv2.pagination_get_triplegs_of_trip(trip_id_); 
+	RETURN response;
+END;
 $BODY$
-  LANGUAGE sql VOLATILE
-  COST 100;
+  LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION apiv2.delete_tripleg(tripleg_id integer) IS 
 $bd$
