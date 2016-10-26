@@ -294,15 +294,20 @@ CREATE TRIGGER trg_deleted_tripleg_before
   WHEN ((old.type_of_tripleg = 1))
   EXECUTE PROCEDURE apiv2.tg_deleted_tripleg_before();
 
+
 CREATE OR REPLACE FUNCTION apiv2.tg_inserted_tripleg()
   RETURNS trigger AS
 $BODY$
 DECLARE 
 trip_id bigint; 
 user_id int;
+number_of_locations int;
+safe_to_check boolean;
 BEGIN 
+	number_of_locations := count(*) from raw_data.location_table l where l.user_id = NEW.user_id and time_ between NEW.from_time and NEW.to_time and accuracy_<= 50;
 	trip_id := t.trip_id from apiv2.trips_inf t where t.trip_id = NEW.trip_id; 
 	user_id := id from raw_data.user_table u where u.id = NEW.user_id;
+	safe_to_check := ((type_of_trip=1) and NEW.type_of_tripleg = 1) from apiv2.trips_inf t where t.trip_id = NEW.trip_id;
 	-- this could be obtained via a trigger but it causes problems on deletions due to the order of the trigger cascade drop
   IF trip_id IS NULL THEN 
     RAISE EXCEPTION 'trip_id has to reference a valid key'; 
@@ -312,6 +317,11 @@ BEGIN
     RAISE EXCEPTION 'trip_id has to reference a valid key'; 
   END IF; 
 
+
+    IF number_of_locations<2 AND safe_to_check  THEN  
+    RAISE EXCEPTION 'insufficient number of locations to form a tripleg'; 
+    END IF;
+    
   return NEW; 
 END;
 $BODY$

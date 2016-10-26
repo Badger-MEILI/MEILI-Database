@@ -3,8 +3,8 @@ select * from plan(2);
 	-- 1. inserting a trip will throw no errors 
 	SELECT lives_ok(
 	$bd$select * from apiv2.insert_stationary_trip_for_user(
-	1000 * extract (epoch from '2016-09-26 16:12:00'::timestamp without time zone)::bigint,
-	1000 * extract (epoch from '2016-09-26 16:15:00'::timestamp without time zone)::bigint,
+	1000 * extract (epoch from '2016-09-26 12:06:00'::timestamp without time zone)::bigint,
+	1000 * extract (epoch from '2016-09-26 12:07:00'::timestamp without time zone)::bigint,
 	-1)$bd$, 
 	'Inserting a new trip should throw no errors');
 

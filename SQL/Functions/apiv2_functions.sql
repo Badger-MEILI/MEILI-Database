@@ -138,9 +138,10 @@ select tripleg_id as triplegid, from_time as start_time, to_time as stop_time, t
 json_agg(row_to_json((select r from (select l.id, l.lat_ as lat, l.lon_ as lon, l.time_ as time) r))) as points,
 (select * from apiv2.ap_get_probable_modes_of_tripleg_json(tripleg_id)) as modes,
 (select * from apiv2.ap_get_transit_pois_of_tripleg_within_buffer(tl.user_id, tl.from_time, tl.to_time, 200, tl.transition_poi_id)) as places
-from (select * from apiv2.unprocessed_triplegs WHERE tripleg_id = $1) tl,
+from (select * from apiv2.unprocessed_triplegs WHERE tripleg_id = $1) tl
+left outer join
 raw_data.location_table l
-where l.time_ between tl.from_time and tl.to_time and l.accuracy_<=50
+on l.time_ between tl.from_time and tl.to_time and l.accuracy_<=50
 and l.user_id = tl.user_id
 group by tripleg_id, type_of_tripleg, tl.user_id, from_time, to_time, transition_poi_id
 $BODY$
