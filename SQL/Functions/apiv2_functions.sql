@@ -697,3 +697,37 @@ COMMENT ON FUNCTION apiv2.pagination_navigate_to_previous_trip(IN user_id_ integ
 $bd$
 GETS THE GROUND TRUTH DEFINITION OF THE TRIP THAT PRECEDES THE ONE WITH THE SPECIFED ID OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST
 $bd$;
+
+CREATE OR REPLACE FUNCTION apiv2.get_stream_for_stop_detection(userid integer)
+  RETURNS json AS
+$BODY$
+select array_to_json(array_agg(result)) from 
+(select l.* from raw_data.location_table as l, (SELECT COALESCE(max(to_time), 0) as to_time from apiv2.unprocessed_trips where user_id = $1) 
+as t
+where l.time_>= t.to_time
+and l.user_id = $1
+order by l.id) result
+$BODY$
+LANGUAGE sql;
+
+COMMENT ON FUNCTION apiv2.get_stream_for_stop_detection(userid integer) IS 
+$BD$
+Returns a stream containing all the locations that do not fall within a trip for a given user.
+$BD$;
+
+CREATE OR REPLACE FUNCTION apiv2.get_stream_for_tripleg_detection(userid integer)
+  RETURNS json AS
+$BODY$
+select array_to_json(array_agg(result)) from 
+(select l.* from raw_data.location_table as l, (SELECT COALESCE(max(to_time), 0) as to_time from apiv2.unprocessed_triplegs where user_id = $1) 
+as t
+where l.time_>= t.to_time
+and l.user_id = $1
+order by l.id) result
+$BODY$
+LANGUAGE sql;
+
+COMMENT ON FUNCTION apiv2.get_stream_for_tripleg_detection(userid integer) IS 
+$BD$
+Returns a stream containing all the locations that do not fall within a tripleg for a given user.
+$BD$;
