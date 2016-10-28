@@ -719,13 +719,17 @@ CREATE OR REPLACE FUNCTION apiv2.get_stream_for_tripleg_detection(userid integer
   RETURNS json AS
 $BODY$
 select array_to_json(array_agg(result)) from 
-(select l.* from raw_data.location_table as l, (SELECT COALESCE(max(to_time), 0) as to_time from apiv2.unprocessed_triplegs where user_id = $1) 
-as t
-where l.time_>= t.to_time
+(select l.*, t.trip_id from raw_data.location_table as l, (select * from apiv2.trips_inf
+	where from_time>= (select COALESCE(max(tlg.to_time),0) from apiv2.unprocessed_triplegs tlg where tlg.user_id = $1)
+	and user_id = $1
+	order by from_time, to_time) t 
+where l.time_ between t.from_time and t.to_time
 and l.user_id = $1
-order by l.id) result
+and l.accuracy_<=50 
+order by l.time_, t.trip_id) result
 $BODY$
-LANGUAGE sql;
+  LANGUAGE sql VOLATILE
+  COST 100;
 
 COMMENT ON FUNCTION apiv2.get_stream_for_tripleg_detection(userid integer) IS 
 $BD$
