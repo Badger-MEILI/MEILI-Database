@@ -238,7 +238,7 @@ BEGIN
 	-- if there is no next tripleg, then a special action for the last tripleg of the trip has to be taken - update the to_time of the current trip 
 	IF next_tripleg_id is null THEN 
 		DELETE FROM apiv2.triplegs_inf where tripleg_id = prev_tripleg_id;
-		UPDATE apiv2.trips_inf set to_time = prev_from_time where trip_id = OLD.trip_id; 
+		UPDATE apiv2.trips_inf set to_time = OLD.from_time where trip_id = OLD.trip_id; 
 	END IF;
 
 	IF prev_tripleg_id is not null and next_tripleg_id is not null THEN  
