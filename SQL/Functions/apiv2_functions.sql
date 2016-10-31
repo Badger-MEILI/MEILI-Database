@@ -25,7 +25,7 @@ $BODY$
 select array_to_json
 		(array_agg
 			(
-			(SELECT x FROM (SELECT case when id = (select purpose_id from apiv2.trips_inf where id = $1) then 100 else 0 end as accuracy, id, name_ as name, name_sv) 
+			(SELECT x FROM (SELECT case when id = (select purpose_id from apiv2.trips_inf where trip_id = $1) then 100 else 0 end as accuracy, id, name_ as name, name_sv) 
 				x order by accuracy)  
 			) 
 		) as mode FROM apiv2.purpose_table
