@@ -735,3 +735,30 @@ COMMENT ON FUNCTION apiv2.get_stream_for_tripleg_detection(userid integer) IS
 $BD$
 Returns a stream containing all the locations that do not fall within a tripleg for a given user.
 $BD$;
+
+CREATE OR REPLACE FUNCTION apiv2.merge_with_next_trip( 
+    trip_id_ integer)
+  RETURNS json AS
+$BODY$
+DECLARE 
+response json; 
+update_to_time bigint;
+BEGIN 
+	update_to_time := to_time + 1 FROM apiv2.trips_inf
+		WHERE from_time >= (SELECT to_time FROM apiv2.trips_inf WHERE trip_id = $1)
+		AND user_id = (SELECT user_id FROM apiv2.trips_inf WHERE trip_id = $1)
+		AND type_of_trip = 1
+		ORDER BY to_time
+		LIMIT 1;
+	
+	response := apiv2.update_trip_end_time(update_to_time, $1);
+
+	RETURN response; 
+END; 
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
+
+
+  COMMENT ON FUNCTION apiv2.merge_with_next_trip(trip_id_ integer)
+  IS 'MERGES A TRIP WITH ITS NEIGHBOUR';
