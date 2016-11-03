@@ -676,11 +676,14 @@ GETS THE GROUND TRUTH DEFINITION OF THE TRIP THAT FOLLOWS THE ONE WITH THE SPECI
 ';
 
 
-CREATE OR REPLACE FUNCTION apiv2.pagination_navigate_to_previous_trip(IN user_id_ integer, IN trip_id_ integer)
+
+CREATE OR REPLACE FUNCTION apiv2.pagination_navigate_to_previous_trip(
+    IN user_id_ integer,
+    IN trip_id_ integer)
   RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
-with 
-        previous_trip as (
+        with 
+previous_trip_gt as (
         select t1.trip_id from apiv2.processed_trips t1, apiv2.processed_trips t2
 		where t1.user_id = $1
 			and t1.user_id = t2.user_id 
@@ -689,10 +692,30 @@ with
 			and t1.to_time <= t2.from_time
 		order by t1.from_time desc, t1.to_time desc
 		limit 1
-        )
-        SELECT f.* from previous_trip g left join lateral apiv2.pagination_get_gt_trip($1, g.trip_id) f on true
+        ), 
+previous_trip_inf as (
+		select t2.trip_id from apiv2.unprocessed_trips t1,
+		apiv2.processed_trips t2
+		-- get all the processed trips 
+		-- of a given user 
+		where t1.user_id = $1
+			and t1.user_id = t2.user_id 
+		-- that are before 
+			and t1.from_time >= t2.to_time
+		-- a given trip id 
+			and t1.trip_id = $2
+			and t2.trip_inf_id <> t1.trip_id 
+		order by t2.from_time desc, t2.to_time desc
+		limit 1
+	),
+trip_id as (select coalesce(t2.trip_id, t1.trip_id) as trip_id from 
+	previous_trip_inf t1 full outer join previous_trip_gt t2 on true)
+	
+        SELECT f.* from trip_id g left join lateral apiv2.pagination_get_gt_trip($1, g.trip_id) f on true
  $BODY$
-  LANGUAGE sql VOLATILE;
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
 
 COMMENT ON FUNCTION apiv2.pagination_navigate_to_previous_trip(IN user_id_ integer, IN trip_id_ integer) IS
 $bd$

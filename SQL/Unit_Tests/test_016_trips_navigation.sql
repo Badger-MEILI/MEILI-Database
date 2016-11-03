@@ -1,4 +1,4 @@
-select * from plan(7);
+select * from plan(9);
 
         -- 1. CHECK THAT THE FUNCTION TO NAVIGATE TO NEXT TRIP RETURNS THE CORRECT RESULT FOR THE FIRST ANNOTATED TRIP
         SELECT results_eq(
@@ -42,7 +42,27 @@ select * from plan(7);
                'select $bd$already_annotated$bd$::text',
          'the function to navigate to the previous trip should return the correct trip status');
 
-        -- 7. CHECK THAT THE FUNCTION TO NAVIGATE TO THE PREVIOUS ANNOTATED TRIP DOES NOT GO BEYOND THE FIRST ANNOTATED TRIP
+         -- 7. CHECK THAT THE FUNCTION TO NAVIGATE TO THE PREVIOUS ANNOTATED TRIP RETURNS THE CORRECT STATUS EVEN IF IT IS CALLED ON THE FIRST UNANNOTATED TRIP
+        SELECT results_eq(
+               'select f1.status from 
+                       	(select trip_id from apiv2.pagination_get_next_process(-1)) as f2
+                left join lateral 
+                        apiv2.pagination_navigate_to_previous_trip(-1, f2.trip_id) as f1
+                on true',
+               'select $bd$already_annotated$bd$::text',
+         'the function to navigate to the previous trip should return the correct trip status');
+
+        -- 8. CHECK THAT THE FUNCTION TO NAVIGATE TO THE PREVIOUS ANNOTATED TRIP RETURNS THE CORRECT ID EVEN IF IT IS CALLED ON THE FIRST UNANNOTATED TRIP
+        SELECT results_eq(
+               'select f1.trip_id from 
+                       	(select trip_id from apiv2.pagination_get_next_process(-1)) as f2
+                left join lateral 
+                        apiv2.pagination_navigate_to_previous_trip(-1, f2.trip_id) as f1
+                on true',
+               'select trip_id from apiv2.trips_gt where trip_inf_id = -8',
+         'the function to navigate to the previous trip should return the correct trip status');
+
+        -- 9. CHECK THAT THE FUNCTION TO NAVIGATE TO THE PREVIOUS ANNOTATED TRIP DOES NOT GO BEYOND THE FIRST ANNOTATED TRIP
         SELECT is_empty(
                'select *  from apiv2.pagination_navigate_to_previous_trip(-1,
                (select trip_id from apiv2.trips_gt where trip_inf_id = -10))',
