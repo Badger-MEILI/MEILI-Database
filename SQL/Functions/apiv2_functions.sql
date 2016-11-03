@@ -196,8 +196,9 @@ CONFIRMS THAT THE TRIP WAS ANNOTATED, IF THIS IS NOT PREVENTED BY TRIGGERS.
 $bd$;
 
 
+DROP FUNCTION IF EXISTS apiv2.delete_trip(integer);
 CREATE OR REPLACE FUNCTION apiv2.delete_trip(IN trip_id integer)
-  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json) AS
+  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 with  
 	deleted_trip as (
@@ -205,8 +206,8 @@ with
 	trip_id = $1 returning user_id 
 	)
 
-	select pagination_get_next_process from deleted_trip
-	left join lateral apiv2.pagination_get_next_process(user_id::int) ON TRUE; 
+	select r.* from deleted_trip
+	left join lateral apiv2.pagination_get_next_process(user_id::int) r ON TRUE; 
 
 $BODY$
   LANGUAGE sql VOLATILE
