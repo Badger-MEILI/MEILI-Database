@@ -205,6 +205,6 @@ Comment on view apiv2.unprocessed_trips is
 -- view that will serve the annotated triplegs per trip
 create or replace view apiv2.processed_triplegs as
         select * from apiv2.triplegs_inf where trip_id =
-        any (select trip_id from apiv2.processed_trips); 
+        any (select trip_inf_id from apiv2.processed_trips); 
         Comment on view apiv2.unprocessed_trips is 
 'Used to serve the annotated triplegs per trip - selection per trip_id';
