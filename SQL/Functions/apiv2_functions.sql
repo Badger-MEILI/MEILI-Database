@@ -802,3 +802,15 @@ and l.user_id = tl.user_id
 group by tripleg_id, type_of_tripleg, tl.user_id, from_time, to_time, transition_poi_id
 $BODY$
   LANGUAGE sql VOLATILE;
+
+
+CREATE OR REPLACE FUNCTION apiv2.pagination_get_triplegs_of_trip_gt(trip_id integer)
+  RETURNS json AS
+$BODY$
+select json_agg(l1.*) from
+(select tripleg_id from apiv2.processed_triplegs where trip_id = (select trip_inf_id from apiv2.trips_gt where trip_id = $1 limit 1) order by from_time, to_time) l2
+join lateral (select * from apiv2.pagination_get_gt_tripleg_with_id(l2.tripleg_id)) l1
+on true
+$BODY$
+  LANGUAGE sql VOLATILE
+  COST 100;
