@@ -90,9 +90,8 @@ $BODY$
 COMMENT ON FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(bigint, bigint, bigint, double precision, bigint) IS 'Extracts the transportation POIs at next to the location at the end of a time period';
 
 
-
 CREATE OR REPLACE FUNCTION apiv2.pagination_get_next_process(IN user_id integer)
-  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 with first_unprocessed_trip as (
         select * from apiv2.unprocessed_trips
@@ -119,17 +118,17 @@ select first.trip_id,
         case when (select * from exists_previous) then 
 		(select to_time from last_processed_trip ) else 0 end as previous_trip_end_date, 
         case when (select * from exists_previous) then 
-		(select purpose_id from last_processed_trip) else null end as last_trip_purpose,
+		(select name_ from apiv2.purpose_table where id = (select purpose_id from last_processed_trip)) else null end as last_trip_purpose,
         case when (select * from exists_previous) then 
 		(select name_ from apiv2.pois where gid = (select destination_poi_id from last_processed_trip)) else '' end as previous_trip_poi,
         case when (select * from exists_next) then (select from_time from next_trip_to_process) else null end as next_trip_start_date,
         (select * from apiv2.ap_get_purposes(trip_id)) as purposes,
-        (select * from apiv2.ap_get_destinations_close_by(pt.lat_, pt.lon_, user_id, destination_poi_id)) as destination_places
+        coalesce((select * from apiv2.ap_get_destinations_close_by(pt.lat_, pt.lon_, user_id, destination_poi_id)), '{}') as destination_places
          from first_unprocessed_trip first,  last_point_of_trip as pt
  $BODY$
-  LANGUAGE sql VOLATILE;
-ALTER FUNCTION apiv2.pagination_get_next_process(integer)
-  OWNER TO postgres;
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
 
 COMMENT ON FUNCTION apiv2.pagination_get_next_process(integer) IS 'Gets the earliest unannotated trip of a user by user id';
 
@@ -166,10 +165,8 @@ $BODY$
 
 COMMENT ON FUNCTION apiv2.pagination_get_triplegs_of_trip(integer) IS 'Retrieves the unannotated triplegs of a trip by the trip_id';
 
-
-
 CREATE OR REPLACE FUNCTION apiv2.confirm_annotation_of_trip_get_next(IN trip_id bigint)
-  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 	with inserted_trip as (
 	insert into apiv2.trips_gt (trip_inf_id, user_id, 
@@ -190,7 +187,8 @@ $BODY$
 	left join lateral apiv2.pagination_get_next_process(user_id::int) p2 ON TRUE; 
 $BODY$
   LANGUAGE sql VOLATILE
-  COST 100;
+  COST 100
+  ROWS 1000;
 
 COMMENT ON FUNCTION apiv2.confirm_annotation_of_trip_get_next(IN trip_id bigint) IS 
 $bd$
@@ -199,8 +197,9 @@ $bd$;
 
 
 DROP FUNCTION IF EXISTS apiv2.delete_trip(integer);
+
 CREATE OR REPLACE FUNCTION apiv2.delete_trip(IN trip_id integer)
-  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 with  
 	deleted_trip as (
@@ -213,7 +212,10 @@ with
 
 $BODY$
   LANGUAGE sql VOLATILE
-  COST 100;
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION apiv2.delete_trip(integer)
+  OWNER TO postgres;
 
 COMMENT ON FUNCTION apiv2.delete_trip(IN trip_id integer) IS 
 $bd$
@@ -279,8 +281,11 @@ INSERTS A NEW TRANSITION POI AS DEFINED BY THE USER AND RETURNS THE ID OF THE IN
 $bd$;
 
 
-CREATE OR REPLACE FUNCTION apiv2.insert_stationary_trip_for_user(IN from_time bigint, IN to_time bigint, IN user_id integer)
-  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+CREATE OR REPLACE FUNCTION apiv2.insert_stationary_trip_for_user(
+    IN from_time bigint,
+    IN to_time bigint,
+    IN user_id integer)
+  RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 with 
 	affected_trip as (select * from apiv2.trips_inf where type_of_trip = 1 and 
@@ -309,12 +314,13 @@ with
 	left join lateral apiv2.pagination_get_next_process(user_id::int) t ON TRUE; 
 $BODY$
   LANGUAGE sql VOLATILE
-  COST 100;
-
-COMMENT ON FUNCTION apiv2.insert_stationary_trip_for_user(IN from_time bigint, IN to_time bigint, IN user_id integer) IS 
-$bd$
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION apiv2.insert_stationary_trip_for_user(bigint, bigint, integer)
+  OWNER TO postgres;
+COMMENT ON FUNCTION apiv2.insert_stationary_trip_for_user(bigint, bigint, integer) IS '
 INSERTS A NON MOVEMENT PERIOD THAT WAS MISSED BY THE SEGMENTATION ALGORITHM BETWEEN TWO TRIPS - TAKES A TRIP, SPLITS IT IN TWO AND INSERTS A NON-MOVEMENT PERIOD IN BETWEEN
-$bd$;
+';
 
 CREATE OR REPLACE FUNCTION apiv2.insert_stationary_tripleg_period_in_trip(from_time bigint, to_time bigint, from_travel_mode integer, to_travel_mode integer, trip_id integer)
   RETURNS json AS
@@ -579,8 +585,10 @@ GETS THE NUMBER OF TRIPS THAT A USER CAN ANNOTATE
 $bd$; 
 
 
-CREATE OR REPLACE FUNCTION apiv2.pagination_get_gt_trip(IN user_id_ integer, IN trip_id_ integer)
-  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+CREATE OR REPLACE FUNCTION apiv2.pagination_get_gt_trip(
+    IN user_id_ integer,
+    IN trip_id_ integer)
+  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 with return_trip as (
 	select * from apiv2.processed_trips
@@ -619,15 +627,23 @@ with return_trip as (
         case when (select * from exists_previous) then 
 		(select to_time from previous_trip) else 0 end as previous_trip_end_date, 
         case when (select * from exists_previous) then 
-		(select purpose_id from previous_trip) else null end as last_trip_purpose,
+		(select name_ from apiv2.purpose_table where id = (select purpose_id from previous_trip)) else null end as last_trip_purpose,
         case when (select * from exists_previous) then 
 		(select name_ from apiv2.pois where gid = (select destination_poi_id from previous_trip)) else '' end as previous_trip_poi,
         case when (select * from exists_next) then (select from_time from next_trip) else null end as next_trip_start_date,
         (select * from apiv2.ap_get_purposes(trip_inf_id)) as purposes,
-        (select * from apiv2.ap_get_destinations_close_by(pt.lat_, pt.lon_, user_id, destination_poi_id)) as destination_places
+        coalesce((select * from apiv2.ap_get_destinations_close_by(pt.lat_, pt.lon_, user_id, destination_poi_id)), '{}') as destination_places
          from return_trip first,  last_point_of_trip as pt
  $BODY$
-  LANGUAGE sql VOLATILE;
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION apiv2.pagination_get_gt_trip(integer, integer)
+  OWNER TO postgres;
+COMMENT ON FUNCTION apiv2.pagination_get_gt_trip(integer, integer) IS '
+GETS THE GROUND TRUTH DEFINITION OF A SPECIFIED TRIP OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST
+';
+
 
 COMMENT ON FUNCTION apiv2.pagination_get_gt_trip(IN user_id_ integer, IN trip_id_ integer) IS
 $bd$
@@ -637,7 +653,7 @@ $bd$;
 CREATE OR REPLACE FUNCTION apiv2.pagination_navigate_to_next_trip(
     IN user_id_ integer,
     IN trip_id_ integer)
-  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
 -- note: hacky implementation, there should be at least one better way
 with 
@@ -674,15 +690,13 @@ with
 ALTER FUNCTION apiv2.pagination_navigate_to_next_trip(integer, integer)
   OWNER TO postgres;
 COMMENT ON FUNCTION apiv2.pagination_navigate_to_next_trip(integer, integer) IS '
-GETS THE GROUND TRUTH DEFINITION OF THE TRIP THAT FOLLOWS THE ONE WITH THE SPECIFED ID OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST
-';
-
+GETS THE GROUND TRUTH DEFINITION OF THE TRIP THAT FOLLOWS THE ONE WITH THE SPECIFED ID OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST';
 
 
 CREATE OR REPLACE FUNCTION apiv2.pagination_navigate_to_previous_trip(
     IN user_id_ integer,
     IN trip_id_ integer)
-  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose integer, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
         with 
 previous_trip_gt as (
@@ -718,11 +732,10 @@ trip_id as (select coalesce(t2.trip_id, t1.trip_id) as trip_id from
   LANGUAGE sql VOLATILE
   COST 100
   ROWS 1000;
-
-COMMENT ON FUNCTION apiv2.pagination_navigate_to_previous_trip(IN user_id_ integer, IN trip_id_ integer) IS
-$bd$
-GETS THE GROUND TRUTH DEFINITION OF THE TRIP THAT PRECEDES THE ONE WITH THE SPECIFED ID OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST
-$bd$;
+ALTER FUNCTION apiv2.pagination_navigate_to_previous_trip(integer, integer)
+  OWNER TO postgres;
+COMMENT ON FUNCTION apiv2.pagination_navigate_to_previous_trip(integer, integer) IS '
+GETS THE GROUND TRUTH DEFINITION OF THE TRIP THAT PRECEDES THE ONE WITH THE SPECIFED ID OR RETURNS A NULL SET IF THE TRIP DOES NOT EXIST';
 
 CREATE OR REPLACE FUNCTION apiv2.get_stream_for_stop_detection(userid integer)
   RETURNS json AS
@@ -789,6 +802,7 @@ $BODY$
   COMMENT ON FUNCTION apiv2.merge_with_next_trip(trip_id_ integer)
   IS 'MERGES A TRIP WITH ITS NEIGHBOUR';
 
+
 CREATE OR REPLACE FUNCTION apiv2.pagination_get_gt_tripleg_with_id(IN tripleg_id integer)
   RETURNS TABLE(triplegid integer, start_time bigint, stop_time bigint, type_of_tripleg smallint, points json, mode json, places json) AS
 $BODY$
@@ -815,4 +829,5 @@ join lateral (select * from apiv2.pagination_get_gt_tripleg_with_id(l2.tripleg_i
 on true
 $BODY$
   LANGUAGE sql VOLATILE
-  COST 100;
+  COST 100
+;

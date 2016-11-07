@@ -9,7 +9,7 @@ select * from plan(19);
          -- 2. CHECK THAT THE PREVIOUS TRIP PURPOSE IS NULL 
          SELECT results_eq(
                'SELECT previous_trip_purpose FROM apiv2.pagination_get_next_process(-1)',
-               'select null::integer',
+               'select null::text',
          'the first trip annotated by the user should not have a previous purpose');
          
          -- 3. CHECK THAT THE PREVIOUS POI NAME IS NULL 
@@ -39,12 +39,12 @@ select * from plan(19);
          -- 7. CHECK THAT THE PREVIOUS TRIP PURPOSE IS 3
          SELECT results_eq(
                'SELECT previous_trip_purpose FROM apiv2.pagination_get_next_process(-1)',
-               'select 3',
+               'select $bd$Business travel$bd$::text',
          'subsequent trips annotated by the user should have the correct previous purpose');         
          -- 8. CHECK THAT THE PREVIOUS POI NAME IS "Hemmet"
          SELECT results_eq(
                'SELECT previous_trip_purpose FROM apiv2.pagination_get_next_process(-1)',
-               'select 3',
+               'select $bd$Business travel$bd$::text',
          'subsequent trips annotated by the user should have the correct previous purpose');
 
          -- 9. CHECK THAT THE PREVIOUS TRIP END DATE IS 1474884000000
