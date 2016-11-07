@@ -48,8 +48,10 @@ $BODY$
 with point_geometry as 
 	(select st_transform(st_setsrid(st_makepoint($2, $1),4326),3006) as orig_pt_geom),
 pois_within_buffer as 
-	(select *, st_distance(p1.geom, p2.orig_pt_geom) as dist from apiv2.pois as p1, point_geometry as p2 where st_dwithin(p1.geom, p2.orig_pt_geom,500) 
-	and (user_id= $3 or user_id is null)
+        (
+	select *, st_distance(p1.geom, p2.orig_pt_geom) as dist from apiv2.pois as p1, point_geometry as p2 where 
+	(p1.gid=$4) or (st_dwithin(p1.geom, p2.orig_pt_geom,500) 
+	and (user_id= $3 or user_id is null))
 	), 
 response as (select gid, lat_ as latitude, lon_ as longitude, 
 	case when name_='' then type_ else name_ end as name, 
