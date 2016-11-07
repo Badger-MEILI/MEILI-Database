@@ -138,7 +138,7 @@ $BODY$
 select tripleg_id as triplegid, from_time as start_time, to_time as stop_time, type_of_tripleg, 
 json_agg(row_to_json((select r from (select l.id, l.lat_ as lat, l.lon_ as lon, l.time_ as time) r))) as points,
 (select * from apiv2.ap_get_probable_modes_of_tripleg_json(tripleg_id)) as modes,
-(select * from apiv2.ap_get_transit_pois_of_tripleg_within_buffer(tl.user_id, tl.from_time, tl.to_time, 200, tl.transition_poi_id)) as places
+coalesce((select * from apiv2.ap_get_transit_pois_of_tripleg_within_buffer(tl.user_id, tl.from_time, tl.to_time, 200, tl.transition_poi_id)), '{}') as places
 from (select * from apiv2.unprocessed_triplegs WHERE tripleg_id = $1) tl
 left outer join
 raw_data.location_table l
@@ -149,7 +149,8 @@ $BODY$
   LANGUAGE sql VOLATILE
   COST 100
   ROWS 1000;
-
+ALTER FUNCTION apiv2.pagination_get_tripleg_with_id(integer)
+  OWNER TO postgres;
 COMMENT ON FUNCTION apiv2.pagination_get_tripleg_with_id(integer) IS 'Gets an unannotated tripleg by its id';
 
 CREATE OR REPLACE FUNCTION apiv2.pagination_get_triplegs_of_trip(trip_id integer)
@@ -803,13 +804,17 @@ $BODY$
   IS 'MERGES A TRIP WITH ITS NEIGHBOUR';
 
 
+-- Function: apiv2.pagination_get_gt_tripleg_with_id(integer)
+
+-- DROP FUNCTION apiv2.pagination_get_gt_tripleg_with_id(integer);
+
 CREATE OR REPLACE FUNCTION apiv2.pagination_get_gt_tripleg_with_id(IN tripleg_id integer)
   RETURNS TABLE(triplegid integer, start_time bigint, stop_time bigint, type_of_tripleg smallint, points json, mode json, places json) AS
 $BODY$
 select tripleg_id as triplegid, from_time as start_time, to_time as stop_time, type_of_tripleg, 
 json_agg(row_to_json((select r from (select l.id, l.lat_ as lat, l.lon_ as lon, l.time_ as time) r))) as points,
 (select * from apiv2.ap_get_probable_modes_of_tripleg_json(tripleg_id)) as modes,
-(select * from apiv2.ap_get_transit_pois_of_tripleg_within_buffer(tl.user_id, tl.from_time, tl.to_time, 200, tl.transition_poi_id)) as places
+coalesce((select * from apiv2.ap_get_transit_pois_of_tripleg_within_buffer(tl.user_id, tl.from_time, tl.to_time, 200, tl.transition_poi_id)), '{}') as places
 from (select * from apiv2.processed_triplegs WHERE tripleg_id = $1) tl
 left outer join
 raw_data.location_table l
@@ -817,8 +822,11 @@ on l.time_ between tl.from_time and tl.to_time and l.accuracy_<=50
 and l.user_id = tl.user_id
 group by tripleg_id, type_of_tripleg, tl.user_id, from_time, to_time, transition_poi_id
 $BODY$
-  LANGUAGE sql VOLATILE;
-
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION apiv2.pagination_get_gt_tripleg_with_id(integer)
+  OWNER TO postgres;
 
 CREATE OR REPLACE FUNCTION apiv2.pagination_get_triplegs_of_trip_gt(trip_id integer)
   RETURNS json AS
