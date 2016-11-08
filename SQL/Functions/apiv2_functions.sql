@@ -72,7 +72,7 @@ CREATE OR REPLACE FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(
     user_id bigint,
     from_time bigint,
     to_time bigint,
-    buffer_in_meters double precision, 
+    buffer_in_meters double precision,
     transition_poi_id bigint)
   RETURNS json AS
 $BODY$
@@ -80,13 +80,12 @@ with
 point as (select lat_, lon_ from raw_data.location_table where user_id = $1 and time_ between $2 and $3 
 order by time_ desc limit 1), 
 point_geometry as (select st_transform(st_setsrid(st_makepoint(lon_, lat_),4326),3006) as orig_pt_geom from point),
-personal_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, 1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where st_dwithin(p2.orig_pt_geom,p1.geom, $4) and declared_by_user = true),
-public_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, -1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where st_dwithin(p2.orig_pt_geom,p1.geom, $4) and declared_by_user = false)
+personal_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, 1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where (st_dwithin(p2.orig_pt_geom,p1.geom, $4) or gid = $5) and declared_by_user = true),
+public_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, -1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where (st_dwithin(p2.orig_pt_geom,p1.geom, $4) or gid = $5) and declared_by_user = false)
 select array_to_json(array_agg(x)) from (select osm_id, type, name, lat, lon, added_by_user, case when (osm_id = $5) then 100 else 0 end as accuracy from personal_transition_within_buffer union all select osm_id, type, name, lat, lon, added_by_user, case when (osm_id = $5) then 100 else 0 end as accuracy from public_transition_within_buffer) x 
 $BODY$
   LANGUAGE sql VOLATILE
   COST 100;
-
 COMMENT ON FUNCTION apiv2.ap_get_transit_pois_of_tripleg_within_buffer(bigint, bigint, bigint, double precision, bigint) IS 'Extracts the transportation POIs at next to the location at the end of a time period';
 
 
