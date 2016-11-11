@@ -281,73 +281,113 @@ INSERTS A NEW TRANSITION POI AS DEFINED BY THE USER AND RETURNS THE ID OF THE IN
 $bd$;
 
 
+DROP FUNCTION IF EXISTS apiv2.insert_stationary_trip_for_user(bigint, bigint, integer);
+
 CREATE OR REPLACE FUNCTION apiv2.insert_stationary_trip_for_user(
-    IN from_time bigint,
-    IN to_time bigint,
-    IN user_id integer)
+    IN from_time_ bigint,
+    IN to_time_ bigint,
+    IN user_id_ integer)
   RETURNS TABLE(trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
 $BODY$
-with 
-	affected_trip as (select * from apiv2.trips_inf where type_of_trip = 1 and 
+DECLARE 
+returning_user_id int;
+affected_trip record; 
+affected_non_movement_trip_period record; 
+result record;
+inserted_movement_period record; 
+inserted_stationary_period record;
+BEGIN 
+	
+	select * from apiv2.trips_inf where type_of_trip = 1 and 
 				user_id = $3
 				and $1 > from_time and $1 < to_time
-				and $2 > from_time and $2 < to_time
-				), 
-	affected_non_movement_trip_period as (select * from apiv2.trips_inf where type_of_trip = 0 and from_time >= (select to_time from affected_trip) order by from_time, to_time limit 1),
-	updated_affected_trip as (UPDATE apiv2.trips_inf set to_time = $1 where trip_id = (select trip_id from affected_trip) returning user_id),
-	inserted_stationary_period as (INSERT INTO apiv2.trips_inf(user_id, from_time, to_time, type_of_trip, parent_trip_id)
-					select user_id, $1, $2, 0, trip_id from affected_trip returning *),
-	inserted_movement_period as (INSERT INTO apiv2.trips_inf(user_id, from_time, to_time, type_of_trip, parent_trip_id)
-					select user_id, $2, to_time , 1, trip_id from affected_trip returning *), 
-	inserted_stationary_tripleg as (INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id)
-					select user_id, from_time, to_time, 1, trip_id, trip_id * (-1)from inserted_stationary_period returning user_id), 
-	inserted_movement_tripleg as (INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id)
-					select user_id, from_time, to_time, 1, trip_id, trip_id*(-1) from inserted_movement_period returning user_id),  
-		
-	returning_user_id as (SELECT distinct user_id FROM ( 
-				select * from inserted_stationary_tripleg 
-				union all select * from inserted_movement_tripleg
-				union all select * from updated_affected_trip
-				) foo)
+				and $2 > from_time and $2 < to_time into affected_trip;
 
-	select t.* from returning_user_id 
-	left join lateral apiv2.pagination_get_next_process(user_id::int) t ON TRUE; 
+	-- raise notice 'Affected trip -> %', affected_trip;
+				
+	select * from apiv2.trips_inf where type_of_trip = 0 and from_time >= affected_trip.to_time order by from_time, to_time limit 1
+	into affected_non_movement_trip_period;
+
+	-- raise notice 'Non movement period -> %', affected_non_movement_trip_period;
+
+	-- raise notice 'FCT UPDATING to_time -> %', affected_trip;
+		
+	UPDATE apiv2.trips_inf ti set to_time = $1 where ti.trip_id = affected_trip.trip_id;
+
+	-- raise notice 'PREPARING TO INSERT NON MOVEMENT -> %, %, %, %, %', affected_trip.user_id, $1, $2, 0, affected_trip.trip_id;
+	INSERT INTO apiv2.trips_inf(user_id, from_time, to_time, type_of_trip, parent_trip_id)
+	select affected_trip.user_id, $1, $2, 0, affected_trip.trip_id RETURNING * INTO inserted_stationary_period;
+
+	-- raise notice 'FCT INSERTED NON MOVEMENT -> %', inserted_stationary_period;
+
+	/*raise notice 'PREPARING TO INSERT MOVEMENT -> %, %, %, %, %', affected_trip.user_id, $2, affected_trip.to_time , 1, affected_trip.trip_id;
+	INSERT INTO apiv2.trips_inf(user_id, from_time, to_time, type_of_trip, parent_trip_id)
+					select affected_trip.user_id, $2, affected_trip.to_time , 1, affected_trip.trip_id RETURNING * INTO inserted_movement_period;
+	
+	raise notice 'FCT INSERTED MOVEMENT -> %', inserted_movement_period;
+	*/
+	
+	INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id) select inserted_stationary_period.user_id, inserted_stationary_period.from_time, inserted_stationary_period.to_time, 1, inserted_stationary_period.trip_id, inserted_stationary_period.trip_id * (-1);
+
+	-- raise notice 'FCT INSERTED FIRST TRIPLEG';				
+
+	/*INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id)
+					select inserted_movement_period.user_id, inserted_movement_period.from_time, inserted_movement_period.to_time, 1, 
+					inserted_movement_period.trip_id, inserted_movement_period.trip_id*(-1);
+	raise notice 'FCT INSERTED SECOND TRIPLEG';				
+	*/
+	result := apiv2.pagination_get_next_process($3);
+	return QUERY select * from apiv2.pagination_get_next_process($3);
+END;
 $BODY$
-  LANGUAGE sql VOLATILE
-  COST 100
-  ROWS 1000;
-ALTER FUNCTION apiv2.insert_stationary_trip_for_user(bigint, bigint, integer)
-  OWNER TO postgres;
+  LANGUAGE plpgsql; 
 COMMENT ON FUNCTION apiv2.insert_stationary_trip_for_user(bigint, bigint, integer) IS '
 INSERTS A NON MOVEMENT PERIOD THAT WAS MISSED BY THE SEGMENTATION ALGORITHM BETWEEN TWO TRIPS - TAKES A TRIP, SPLITS IT IN TWO AND INSERTS A NON-MOVEMENT PERIOD IN BETWEEN
 ';
 
-CREATE OR REPLACE FUNCTION apiv2.insert_stationary_tripleg_period_in_trip(from_time bigint, to_time bigint, from_travel_mode integer, to_travel_mode integer, trip_id integer)
+DROP FUNCTION IF EXISTS apiv2.insert_stationary_tripleg_period_in_trip(bigint, bigint, integer, integer, integer);
+
+CREATE OR REPLACE FUNCTION apiv2.insert_stationary_tripleg_period_in_trip(
+    from_time_ bigint,
+    to_time_ bigint,
+    from_travel_mode_ integer,
+    to_travel_mode_ integer,
+    trip_id_ integer)
   RETURNS json AS
 $BODY$
-with 
-	affected_tripleg as (select * from apiv2.triplegs_inf where type_of_tripleg = 1 and 
+DECLARE 
+affected_tripleg record; 
+inserted_stationary_period record;
+inserted_movement_period record; 
+result json; 
+BEGIN 
+	select * from apiv2.triplegs_inf where type_of_tripleg = 1 and 
 				trip_id = $5
 				and $1 > from_time and $1 < to_time
 				and $2 > from_time and $2 < to_time
-				),
-	inserted_stationary_period as (INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id)
-					select user_id, $1, $2, 0, trip_id, tripleg_id from affected_tripleg returning trip_id), 
-	inserted_movement_period as (INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, transportation_type, trip_id, parent_tripleg_id)
-					select user_id, $2, to_time , 1, $4, trip_id, tripleg_id from affected_tripleg returning trip_id),
-	updated_affected_tripleg as (UPDATE apiv2.triplegs_inf set to_time = $1, transportation_type = $3 where tripleg_id = (select tripleg_id from affected_tripleg) returning trip_id),
-	returning_trip_id as (SELECT distinct trip_id FROM (select * from inserted_stationary_period union all select * from inserted_movement_period union all select * from updated_affected_tripleg) foo)
+				into affected_tripleg;
 
-	select pagination_get_triplegs_of_trip from returning_trip_id 
-	left join lateral apiv2.pagination_get_triplegs_of_trip(trip_id) ON TRUE; 
+	-- RAISE NOTICE 'INSERTING FIRST -> %,%,%,%,%,%', affected_tripleg.user_id, $1, $2, 0, affected_tripleg.trip_id, affected_tripleg.tripleg_id;
+	INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id)
+					select affected_tripleg.user_id, $1, $2, 0, affected_tripleg.trip_id, affected_tripleg.tripleg_id;
+
+	-- RAISE NOTICE 'INSERTING SECOND -> %,%,%,%,%,%, %', affected_tripleg.user_id, $2, affected_tripleg.to_time , 1, $4, affected_tripleg.trip_id, affected_tripleg.tripleg_id;				 
+	INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, transportation_type, trip_id, parent_tripleg_id)
+					select affected_tripleg.user_id, $2, affected_tripleg.to_time , 1, $4, affected_tripleg.trip_id, affected_tripleg.tripleg_id;
+
+	-- RAISE NOTICE 'UPDATING TRIPLEG -> %, %, %', affected_tripleg.tripleg_id, $1, $3;
+	UPDATE apiv2.triplegs_inf set to_time = $1, transportation_type = $3 where tripleg_id = affected_tripleg.tripleg_id;  
+
+	result := apiv2.pagination_get_triplegs_of_trip($5);
+	
+	RETURN result;
+END; 
 $BODY$
-  LANGUAGE sql VOLATILE
-  COST 100;
-
-COMMENT ON FUNCTION apiv2.insert_stationary_tripleg_period_in_trip(from_time bigint, to_time bigint, from_travel_mode integer, to_travel_mode integer, trip_id integer) IS
-$bd$
+  LANGUAGE plpgsql;
+   
+COMMENT ON FUNCTION apiv2.insert_stationary_tripleg_period_in_trip(bigint, bigint, integer, integer, integer) IS '
 INSERTS A NEW TRANSITION THAT WAS MISSED BY THE SEGMENTATION ALGORITHM IN BETWEEN TWO TRIPLEGS - TAKES A TRIPLEG, SPLITS IT IN TWO AND INSERTS A NON-MOVEMENT TRIPLEG IN BETWEEN
-$bd$;
+';
 
 CREATE OR REPLACE FUNCTION apiv2.update_trip_destination_poi_id(destination_poi_id bigint, trip_id integer)
   RETURNS boolean AS
