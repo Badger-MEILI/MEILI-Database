@@ -373,10 +373,10 @@ BEGIN
 	END IF;
 	-- previous stationary tripleg
 	prev_tripleg_id := tripleg_id from apiv2.triplegs_inf where trip_id = NEW.trip_id
-		and type_of_tripleg = 0 and from_time <= NEW.from_time order by to_time desc limit 1;
+		and type_of_tripleg = 0 and to_time <= greatest(OLD.from_time, NEW.from_time) order by to_time desc limit 1;
 	-- next stationary tripleg
 	next_tripleg_id := tripleg_id from apiv2.triplegs_inf where trip_id = NEW.trip_id
-		and type_of_tripleg = 0 and from_time >= NEW.to_time order by from_time asc limit 1;
+		and type_of_tripleg = 0 and from_time >= least(OLD.to_time, NEW.to_time) order by from_time asc limit 1;
  
 	IF prev_tripleg_id IS NULL AND NEW.from_time <> OLD.from_time AND trip_from_time<>NEW.from_time THEN 
 	RAISE EXCEPTION 'the start period of the first tripleg cannot be updated';
@@ -402,10 +402,11 @@ END;
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
+ALTER FUNCTION apiv2.tg_updated_tripleg()
+  OWNER TO postgres;
 COMMENT ON FUNCTION apiv2.tg_updated_tripleg() IS '
 Check that the updates of a tripleg only occusr within the time frame of the trip and does not overflow to neighboring trips. 
-Also assures time period consistency for stationary period triplegs
-';
+Also assures time period consistency for stationary period triplegs';
 
 DROP TRIGGER IF EXISTS trg_updated_tripleg ON apiv2.triplegs_inf;
 
