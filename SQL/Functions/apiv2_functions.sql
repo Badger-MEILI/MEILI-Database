@@ -316,26 +316,28 @@ BEGIN
 
 	-- raise notice 'PREPARING TO INSERT NON MOVEMENT -> %, %, %, %, %', affected_trip.user_id, $1, $2, 0, affected_trip.trip_id;
 	INSERT INTO apiv2.trips_inf(user_id, from_time, to_time, type_of_trip, parent_trip_id)
-	select affected_trip.user_id, $1, $2, 0, affected_trip.trip_id RETURNING * INTO inserted_stationary_period;
+					select affected_trip.user_id, $1, $2, 0, affected_trip.trip_id RETURNING * INTO inserted_stationary_period;
 
 	-- raise notice 'FCT INSERTED NON MOVEMENT -> %', inserted_stationary_period;
 
-	/*raise notice 'PREPARING TO INSERT MOVEMENT -> %, %, %, %, %', affected_trip.user_id, $2, affected_trip.to_time , 1, affected_trip.trip_id;
+	-- raise notice 'PREPARING TO INSERT MOVEMENT -> %, %, %, %, %', affected_trip.user_id, $2, affected_trip.to_time , 1, affected_trip.trip_id;
 	INSERT INTO apiv2.trips_inf(user_id, from_time, to_time, type_of_trip, parent_trip_id)
 					select affected_trip.user_id, $2, affected_trip.to_time , 1, affected_trip.trip_id RETURNING * INTO inserted_movement_period;
 	
-	raise notice 'FCT INSERTED MOVEMENT -> %', inserted_movement_period;
-	*/
+	-- raise notice 'FCT INSERTED MOVEMENT -> %', inserted_movement_period;
 	
-	INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id) select inserted_stationary_period.user_id, inserted_stationary_period.from_time, inserted_stationary_period.to_time, 1, inserted_stationary_period.trip_id, inserted_stationary_period.trip_id * (-1);
+	
+	INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id)
+					select inserted_stationary_period.user_id, inserted_stationary_period.from_time, inserted_stationary_period.to_time, 1, 
+						inserted_stationary_period.trip_id, inserted_stationary_period.trip_id * (-1);
 
 	-- raise notice 'FCT INSERTED FIRST TRIPLEG';				
 
-	/*INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id)
+	INSERT INTO apiv2.triplegs_inf(user_id, from_time, to_time, type_of_tripleg, trip_id, parent_tripleg_id)
 					select inserted_movement_period.user_id, inserted_movement_period.from_time, inserted_movement_period.to_time, 1, 
 					inserted_movement_period.trip_id, inserted_movement_period.trip_id*(-1);
-	raise notice 'FCT INSERTED SECOND TRIPLEG';				
-	*/
+	-- raise notice 'FCT INSERTED SECOND TRIPLEG';				
+	
 	result := apiv2.pagination_get_next_process($3);
 	return QUERY select * from apiv2.pagination_get_next_process($3);
 END;
@@ -344,6 +346,7 @@ $BODY$
 COMMENT ON FUNCTION apiv2.insert_stationary_trip_for_user(bigint, bigint, integer) IS '
 INSERTS A NON MOVEMENT PERIOD THAT WAS MISSED BY THE SEGMENTATION ALGORITHM BETWEEN TWO TRIPS - TAKES A TRIP, SPLITS IT IN TWO AND INSERTS A NON-MOVEMENT PERIOD IN BETWEEN
 ';
+
 
 DROP FUNCTION IF EXISTS apiv2.insert_stationary_tripleg_period_in_trip(bigint, bigint, integer, integer, integer);
 
@@ -785,6 +788,7 @@ select array_to_json(array_agg(result)) from
 as t
 where l.time_>= t.to_time
 and l.user_id = $1
+and l.accuracy_<=50
 order by l.id) result
 $BODY$
 LANGUAGE sql;
