@@ -882,3 +882,55 @@ $BODY$
   LANGUAGE sql VOLATILE
   COST 100
 ;
+
+
+CREATE OR REPLACE FUNCTION apiv2.get_next_trip_response_temp_fix(IN user_id_ integer)
+  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+$bd$  
+with 
+last_annotated_trip as (
+	select trip_id, user_id from apiv2.processed_trips 
+	where user_id = $1
+	order by from_time desc, to_time desc 
+	limit 1 
+)
+select l1.* from last_annotated_trip l
+	left join lateral apiv2.pagination_get_gt_trip(l.user_id:: integer, l.trip_id) l1  on true
+union all 
+select 'needs_annotation',* from apiv2.pagination_get_next_process($1) 
+order by status desc 
+limit 1 
+$bd$ 
+LANGUAGE sql; 
+
+DROP FUNCTION IF EXISTS apiv2.confirm_annotation_of_trip_get_next(bigint);
+
+CREATE OR REPLACE FUNCTION apiv2.confirm_annotation_of_trip_get_next(IN trip_id bigint)
+  RETURNS TABLE(status text, trip_id integer, current_trip_start_date bigint, current_trip_end_date bigint, previous_trip_end_date bigint, previous_trip_purpose text, previous_trip_poi_name text, next_trip_start_date bigint, purposes json, destination_places json) AS
+$BODY$
+	with inserted_trip as (
+	insert into apiv2.trips_gt (trip_inf_id, user_id, 
+	from_time, to_time, type_of_trip, purpose_id, destination_poi_id)
+	(select trip_id, user_id, from_time, to_time, type_of_trip, purpose_id, destination_poi_id 
+	from apiv2.trips_inf where trip_id = $1)
+	returning user_id, trip_id
+	),
+	inserted_triplegs as (
+	insert into apiv2.triplegs_gt (tripleg_inf_id, trip_id, user_id, from_time, to_time, type_of_tripleg, transportation_type, transition_poi_id)
+	(select tripleg_id, (select trip_id from inserted_trip), user_id, from_time, to_time, type_of_tripleg, transportation_type, transition_poi_id
+	from apiv2.triplegs_inf where trip_id = $1)
+	returning user_id
+	),
+	distinct_user_id as (select distinct user_id
+		from inserted_triplegs)  
+	select p2.* from distinct_user_id 
+	left join lateral apiv2.get_next_trip_response_temp_fix(user_id::int) p2 ON TRUE; 
+$BODY$
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION apiv2.confirm_annotation_of_trip_get_next(bigint)
+  OWNER TO postgres;
+COMMENT ON FUNCTION apiv2.confirm_annotation_of_trip_get_next(bigint) IS '
+CONFIRMS THAT THE TRIP WAS ANNOTATED, IF THIS IS NOT PREVENTED BY TRIGGERS.
+';
