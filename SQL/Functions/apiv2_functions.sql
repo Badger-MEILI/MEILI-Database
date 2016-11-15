@@ -106,7 +106,8 @@ with first_unprocessed_trip as (
         next_trip_to_process as (
         select * from apiv2.unprocessed_trips
         where user_id = $1
-        and trip_id> (select trip_id from first_unprocessed_trip)
+        and from_time >= (select to_time from first_unprocessed_trip)
+        order by from_time
         limit 1
         ),
         exists_next as (select exists(select * from next_trip_to_process)),
