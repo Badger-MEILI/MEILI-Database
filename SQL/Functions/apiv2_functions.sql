@@ -785,12 +785,14 @@ CREATE OR REPLACE FUNCTION apiv2.get_stream_for_stop_detection(userid integer)
   RETURNS json AS
 $BODY$
 select array_to_json(array_agg(result)) from 
-(select l.* from raw_data.location_table as l, (SELECT COALESCE(max(to_time), 0) as to_time from apiv2.unprocessed_trips where user_id = $1) 
+(select l.* from raw_data.location_table as l, 
+(SELECT COALESCE(COALESCE(max(t_inf.to_time), max(t_gt.to_time)),0) as to_time from apiv2.unprocessed_trips t_inf full outer join apiv2.processed_trips t_gt 
+	on t_inf.user_id = $1 and t_inf.user_id = t_gt.user_id) 
 as t
 where l.time_>= t.to_time
 and l.user_id = $1
 and l.accuracy_<=50
-order by l.id) result
+order by l.time_) result
 $BODY$
 LANGUAGE sql;
 
