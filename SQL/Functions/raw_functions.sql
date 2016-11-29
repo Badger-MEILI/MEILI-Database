@@ -28,3 +28,17 @@ $BODY$
   COST 100;
 
 COMMENT ON FUNCTION raw_data.register_user(citext, text, text, text) IS 'inserts a new user with hashed password and returns the user_id for the api end point related to register_user';
+
+
+CREATE OR REPLACE FUNCTION raw_data.update_user_password(
+    username citext,
+    password text)
+  RETURNS boolean AS
+$BODY$
+	UPDATE raw_data.user_table 
+	SET PASSWORD = crypt($2, gen_salt('bf',8))
+	WHERE username = $1
+	RETURNING true;
+$BODY$
+  LANGUAGE sql VOLATILE
+  COST 100;
