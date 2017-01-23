@@ -42,8 +42,10 @@ Want to contribute? Great! See the Todos list for needed improvements. Also, you
  
 ### Todos
 
- - Use different roles for calling functions, based on the necessary permissions
- - Generate test data 
+- Determine logic for splitting a trip that already contains more than one tripleg (this crashes now) 
+- Change flow tests into unit test 
+- Add unit tests for authentication 
+- Any benchmark ideas? 
 
 Need help setting up MEILI in production
 ----
@@ -54,7 +56,7 @@ License
 
 This DATABASE is made available under the Open Data Commons Attribution License (ODC-By) v1.0. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-Copyright &copy; 2014-2016 Adrian C. Prelipcean - http://adrianprelipcean.github.io/ 
-Copyright &copy; 2016 Badger AB - https://github.com/Badger-MEILI
+Copyright &copy; 2014-2017 Adrian C. Prelipcean - http://adrianprelipcean.github.io/ 
+Copyright &copy; 2016-2017 Badger AB - https://github.com/Badger-MEILI
 
 You should have received a copy of the Open Data Commons Attribution License (ODC-By) v1.0 along with this program.  If not, see http://opendatacommons.org/wp-content/uploads/2010/01/odc_by_1.0_public_text.txt
