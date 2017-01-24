@@ -42,6 +42,7 @@ Want to contribute? Great! See the Todos list for needed improvements. Also, you
  
 ### Todos
 
+- Add LCS function to the database and unit tests for it 
 - Determine logic for splitting a trip that already contains more than one tripleg (this crashes now) 
 - Change flow tests into unit test 
 - Add unit tests for authentication 
