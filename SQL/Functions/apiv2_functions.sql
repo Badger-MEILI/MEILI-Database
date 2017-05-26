@@ -46,11 +46,12 @@ CREATE OR REPLACE FUNCTION apiv2.ap_get_destinations_close_by(
   RETURNS json AS
 $BODY$ 
 with point_geometry as 
-	(select st_transform(st_setsrid(st_makepoint($2, $1),4326),3006) as orig_pt_geom),
+	(select st_setsrid(st_makepoint($2, $1),4326) as orig_pt_geom),
 pois_within_buffer as 
         (
-	select *, st_distance(p1.geom, p2.orig_pt_geom) as dist from apiv2.pois as p1, point_geometry as p2 where 
-	(p1.gid=$4) or (st_dwithin(p1.geom, p2.orig_pt_geom,500) 
+        -- [HACK] Force cast to geography to specify ellipsoid distances
+	select *, st_distance(p1.geom::geography, p2.orig_pt_geom::geography) as dist from apiv2.pois as p1, point_geometry as p2 where 
+	(p1.gid=$4) or (st_dwithin(p1.geom::geography, p2.orig_pt_geom::geography,500) 
 	and (user_id= $3 or user_id is null))
 	), 
 response as (select gid, lat_ as latitude, lon_ as longitude, 
@@ -79,9 +80,11 @@ $BODY$
 with 
 point as (select lat_, lon_ from raw_data.location_table where user_id = $1 and time_ between $2 and $3 
 order by time_ desc limit 1), 
-point_geometry as (select st_transform(st_setsrid(st_makepoint(lon_, lat_),4326),3006) as orig_pt_geom from point),
-personal_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, 1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where (st_dwithin(p2.orig_pt_geom,p1.geom, $4) or gid = $5) and declared_by_user = true),
-public_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, -1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where (st_dwithin(p2.orig_pt_geom,p1.geom, $4) or gid = $5) and declared_by_user = false)
+point_geometry as (select st_setsrid(st_makepoint(lon_, lat_),4326) as orig_pt_geom from point),
+        -- [HACK] Force cast to geography to specify ellipsoid distances
+personal_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, 1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where (st_dwithin(p2.orig_pt_geom::geography,p1.geom::geography, $4) or gid = $5) and declared_by_user = true),
+        -- [HACK] Force cast to geography to specify ellipsoid distances
+public_transition_within_buffer as (SELECT gid as osm_id, type_ AS type, name_ as name, lat_ as lat, lon_ as lon, -1 as added_by_user from apiv2.poi_transportation as p1, point_geometry as p2 where (st_dwithin(p2.orig_pt_geom::geography,p1.geom::geography, $4) or gid = $5) and declared_by_user = false)
 select array_to_json(array_agg(x)) from (select osm_id, type, name, lat, lon, added_by_user, case when (osm_id = $5) then 100 else 0 end as accuracy from personal_transition_within_buffer union all select osm_id, type, name, lat, lon, added_by_user, case when (osm_id = $5) then 100 else 0 end as accuracy from public_transition_within_buffer) x 
 $BODY$
   LANGUAGE sql VOLATILE
@@ -254,7 +257,7 @@ CREATE OR REPLACE FUNCTION apiv2.insert_destination_poi(
   RETURNS integer AS
 $BODY$
 	INSERT INTO apiv2.pois(name_, lat_, lon_, user_id, is_personal, geom)
-	VALUES ($1, $2, $3, $4, true, st_transform(st_setsrid(st_makepoint($3, $2), 4326), 3006))
+	VALUES ($1, $2, $3, $4, true, st_setsrid(st_makepoint($3, $2), 4326))
 	RETURNING gid
 $BODY$
   LANGUAGE sql VOLATILE
@@ -270,7 +273,7 @@ CREATE OR REPLACE FUNCTION apiv2.insert_transition_poi(name text, latitude doubl
 $BODY$
 	INSERT INTO apiv2.poi_transportation
 	(name_, lat_, lon_, declaring_user_id, declared_by_user, geom, transportation_lines, transportation_types)
-	VALUES ($1, $2, $3, $4, true, st_transform(st_setsrid(st_makepoint($3, $2), 4326), 3006), $5, $6)
+	VALUES ($1, $2, $3, $4, true, st_setsrid(st_makepoint($3, $2), 4326), $5, $6)
 	RETURNING gid
 $BODY$
 LANGUAGE sql VOLATILE 

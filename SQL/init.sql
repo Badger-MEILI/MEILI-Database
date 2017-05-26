@@ -10,8 +10,9 @@ BEGIN;
 \i Data/location_data.sql;
 \i Data/travel_mode.sql; 
 \i Data/purposes.sql;
-\i Data/pois.sql;
-\i Data/pois_transportation.sql;
+-- THIS IS SKIPPED BECAUSE OF THE AUTO-POI POPULATION 
+--\i Data/pois.sql; 
+--\i Data/pois_transportation.sql;
 \i Data/trips_inf.sql;
 \i Data/triplegs_inf.sql;
 \i Frontend_Test_Data/schemas_and_tables.sql;

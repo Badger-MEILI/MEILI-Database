@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS apiv2.pois
   user_id bigint,
   osm_id bigint DEFAULT 0,
   is_personal boolean,
-  geom geometry(Point,3006),
+  geom geometry(Point),
   CONSTRAINT pois_pkey PRIMARY KEY (gid)
 );
 
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS apiv2.poi_transportation
   transportation_types text,
   declaring_user_id integer,
   type_sv text,
-  geom geometry(Point,3006),
+  geom geometry(Point),
   CONSTRAINT poi_transportation_pkey PRIMARY KEY (gid)
 );
 COMMENT ON TABLE apiv2.poi_transportation is 

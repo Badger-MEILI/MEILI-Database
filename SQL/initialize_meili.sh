@@ -1,0 +1,11 @@
+echo "ENABLING THE MEILI DATABASE"
+
+psql -d $5 -h $7 -U $6 -a -f init.sql -v ON_ERROR_STOP=1
+
+echo "DATABASE ENABLED"
+
+echo "IMPORTING THE EXTERNAL DATASETS"
+
+bash download_poi.sh $1 $2 $3 $4 $5 $6 $7
+
+echo "SUCCESSFUL... IMPORTING THE EXTERNAL DATASETS"
